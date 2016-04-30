@@ -156,15 +156,28 @@ void JsonToEntities(const json::value &val, vector<entity> &ents)
 	}
 }
 
-void queryEntity(QueryAttri qa, initializer_list<Id_type> &ids, std::vector<entity> &ents, size_t count, size_t offset)
+void queryEntity(QueryAttri qa, Id_type &id, Entity_List &ents, size_t count, size_t offset)
 {
-	auto query= baseHttpClient(QueryAttri::Id, *ids.begin()).then(
+	auto query= baseHttpClient(QueryAttri::Id, id).then(
 		extractResponse).then(extractJson).then(
 			[&](json::value val) {return JsonToEntities(val, ents); });
 	try {
 		query.get();
 	}
 	catch (exception &e) {
-		printf("%s", e.what());
+		printf("Exception: %s\r\n", e.what());
+	}
+}
+
+void queryEntity(QueryAttri qa, Id_List &ids, Entity_List &ents, size_t count, size_t offset)
+{
+	auto query = baseHttpClient(QueryAttri::Id, *ids.begin()).then(
+		extractResponse).then(extractJson).then(
+			[&](json::value val) {return JsonToEntities(val, ents); });
+	try {
+		query.get();
+	}
+	catch (exception &e) {
+		printf("Exception: %s\r\n", e.what());
 	}
 }

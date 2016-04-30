@@ -18,3 +18,5 @@ struct entity{
 	std::vector<Id_type> R_Id;
 	std::vector<Id_type> F_Id;
 };
+
+using Entity_List = std::vector<entity>;
