@@ -2,7 +2,7 @@
 
 #include <vector>
 
-typedef __int64 Id_type;
+using Id_type = __int64;
 
 struct AA
 {
