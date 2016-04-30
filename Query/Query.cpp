@@ -5,7 +5,7 @@
 #include <cpprest/http_client.h>
 #include <cpprest/uri_builder.h>
 
-#define QUERY_DEBUG_
+//#define QUERY_DEBUG_
 
 using namespace std;
 
@@ -15,53 +15,7 @@ using namespace web::http;
 using namespace web::http::client;
 using namespace web::json;
 
-enum class QueryType
-{
-	Id, FId, JId, CId, AuId, AfId, RId
-};
-
-void responseToJson(http_response res)
-{
-	auto data = res.extract_json();
-
-	try {
-		data.wait();
-	}
-	catch (const std::exception &e) {
-		printf("Error exception:%s\n", e.what());
-	}
-}
-
-void ttt(json::value &val)
-{
-	if (!val.is_null()) {
-		auto b = val.as_object();
-		for (auto iter = b.cbegin(); iter != b.cend(); ++iter) {
-			if (iter->first != U("entities")) continue;
-			json::array entities = iter->second.as_array();
-			cout << "size is " << entities.size();
-			for (auto iter2 = entities.cbegin(); iter2 != entities.cend(); ++iter2) {
-
-			}
-		}
-	}
-}
-/*
-void queryId(const Id_type &Id, entity &ent)
-{
-	builder.append_query(U("expr"), U("Composite(AA.AuN=='jaime teevan')"));
-	pplx::task<void> resp = queryClient.request(methods::GET, builder.to_string()).then([=](http_response res)
-	{ return res.extract_json(); }).then(ttt);
-		//.then([=](json::value val) {std::wcout<<"bcd" << val.serialize(); });
-	try {
-		resp.wait();
-	}
-	catch (const std::exception &e) {
-		printf("aError exception:%s\n", e.what());
-	}
-}*/
-
-pplx::task<http_response> baseHttpClient(QueryType qt, Id_type id)
+pplx::task<http_response> baseHttpClient(QueryAttri qt, Id_type id)
 {
 #ifndef QUERY_DEBUG_
 	http_client queryClient(U("https://oxfordhk.azure-api.net"));
@@ -82,19 +36,19 @@ pplx::task<http_response> baseHttpClient(QueryType qt, Id_type id)
 
 	string_t expr;
 	switch (qt) {
-	case QueryType::Id: expr = U("Id=") + to_wstring(id);
+	case QueryAttri::Id: expr = U("Id=") + to_wstring(id);
 		break;
-	case QueryType::FId: expr = U("Composite(F.FId=") + to_wstring(id) + U(")");
+	case QueryAttri::FId: expr = U("Composite(F.FId=") + to_wstring(id) + U(")");
 		break;
-	case QueryType::JId: expr = U("Composite(J.JId=") + to_wstring(id) + U(")");
+	case QueryAttri::JId: expr = U("Composite(J.JId=") + to_wstring(id) + U(")");
 		break;
-	case QueryType::CId: expr = U("Composite(C.CId=") + to_wstring(id) + U(")");
+	case QueryAttri::CId: expr = U("Composite(C.CId=") + to_wstring(id) + U(")");
 		break;
-	case QueryType::AuId: expr = U("Composite(AA.AuId=") + to_wstring(id) + U(")");
+	case QueryAttri::AuId: expr = U("Composite(AA.AuId=") + to_wstring(id) + U(")");
 		break;
-	case QueryType::AfId: expr = U("Composite(AA.AfId=") + to_wstring(id) + U(")");
+	case QueryAttri::AfId: expr = U("Composite(AA.AfId=") + to_wstring(id) + U(")");
 		break;
-	case QueryType::RId: expr = U("RId=") + to_wstring(id);
+	case QueryAttri::RId: expr = U("RId=") + to_wstring(id);
 		break;
 	default:
 		break;
@@ -103,25 +57,114 @@ pplx::task<http_response> baseHttpClient(QueryType qt, Id_type id)
 	return queryClient.request(methods::GET, builder.to_string());
 }
 
-json::value Response(http_response res)
+json::value extractResponse(const http_response &res)
 {
-	json::value obj;
-	if (res.status_code() == status_codes::OK) return res.extract_json();
+	if (res.status_code() == status_codes::OK) return res.extract_json().get();
 #ifdef QUERY_DEBUG_
 	else cout << "http_response status_code: " << res.status_code() << endl;
 #endif // QUERY_DEBUG_
-	return obj;
+	return json::value();
 }
 
-void QueryEntity(QueryType qt, initializer_list<Id_type> ids, vector<entity> entities, size_t count = 100, size_t offset = 0)
+json::value extractJson(const json::value &val)
 {
+	if (val.is_null() || !val.is_object()) {
+#ifdef QUERY_DEBUG_
+		cout << "val is null or is not a object" << endl;
+#endif // QUERY_DEBUG_
+
+		return json::value();
+	}
+	
+	auto obj = val.as_object();
+	return obj.at(U("entities"));
 }
 
-void queryId(const Id_type &Id, entity &ent)
+QueryAttri Attri(string_t attr)
 {
-	auto tmp = baseHttpClient(QueryType::Id, Id).then([=](http_response res) {
-		cout << res.status_code() << endl;
-		wcout << res.to_string();
-	});
-	tmp.get();
+	switch (attr[0]) {
+	case U('I'): return QueryAttri::Id;
+	case U('R'): return QueryAttri::RId;
+	case U('F'): return QueryAttri::FId;
+	case U('C'): return QueryAttri::CId;
+	case U('J'): return QueryAttri::JId;
+	case U('A'): {
+		switch (attr[1]) {
+		case U('A'): return QueryAttri::AA;
+		case U('u'): return QueryAttri::AuId;
+		case U('f'): return QueryAttri::AfId;
+		}
+	}
+		
+	}
+}
+
+void JsonToEntities(const json::value &val, vector<entity> &ents)
+{
+	if (val.is_null()) return;
+#ifdef QUERY_DEBUG_
+	cout << "run to here 2" << endl;
+#endif // QUERY_DEBUG_
+	auto valarray = val.as_array();
+	for (auto iter = valarray.cbegin(); iter != valarray.cend(); ++iter) {
+		auto ent = iter->as_object();
+		entity e;
+		for (auto iter2 = ent.cbegin(); iter2 != ent.cend(); ++iter2) {
+			switch (Attri(iter2->first)) {
+			case QueryAttri::Id:
+				e.Id = iter2->second.as_integer();
+				break;
+			case QueryAttri::FId: {
+				auto Fs = iter2->second.as_array();
+				for (auto iterF = Fs.cbegin(); iterF != Fs.cend(); ++iterF) {
+					e.F_Id.push_back(iterF->at(U("FId")).as_integer());
+				}
+			}break;
+			case QueryAttri::JId:
+				e.J_Id = (iter2->second).as_object().at(U("JId")).as_integer();
+				break;
+			case QueryAttri::CId:
+				e.C_Id = (iter2->second).as_object().at(U("CId")).as_integer();
+				break;
+			case QueryAttri::AA: {
+				auto As = iter2->second.as_array();
+				for (auto iterAA = As.cbegin(); iterAA != As.cend(); ++iterAA) {
+					AA a;
+					auto aa = iterAA->as_object();
+					for (auto iteraa = aa.cbegin(); iteraa != aa.cend(); ++iteraa) {
+						switch (Attri(iteraa->first)) {
+						case QueryAttri::AfId:
+							a.AfId = iteraa->second.as_integer();
+							break;
+						case QueryAttri::AuId:
+							a.AuId = iteraa->second.as_integer();
+							break;
+						}
+					}
+					e.AAs.push_back(a);
+				}
+			}break;
+			case QueryAttri::RId:{
+				auto Rs = iter2->second.as_array();
+				for (auto iterR = Rs.cbegin(); iterR != Rs.cend(); ++iterR) {
+					e.R_Id.push_back(iterR->as_integer());
+				}
+			}break;
+			}
+		}
+		ents.push_back(e);
+	}
+}
+
+void queryEntity(QueryAttri qa, initializer_list<Id_type> &ids, std::vector<entity> &ents, size_t count, size_t offset)
+{
+	auto query= baseHttpClient(QueryAttri::Id, *ids.begin()).then(
+		extractResponse).then(extractJson).then(
+			[&](json::value val) {return JsonToEntities(val, ents); });
+	try {
+		query.get();
+	}
+	catch (exception &e) {
+		printf("%s", e.what());
+	}
 }
