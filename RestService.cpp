@@ -27,23 +27,15 @@ const char* dllName = "findPath.dll";
 const char* funName = "findPath";
 FUNA fp = nullptr;
 
-void RSLog(const char *str)
+template<typename T>
+void RSLog(const T str)
 {
 	ofstream logfile("logfile.log", ofstream::app);
 	auto t = time(nullptr);
-	logfile << ctime(&t) << "\t" << str << endl;
+	logfile << ctime(&t) << '\t' << str << endl;
 #ifdef AGG_DEBUG_
-	cout << ctime(&t) << "\t" << str << endl;
+	cout << ctime(&t) << '\t' << str << endl;
 #endif // AGG_DEBUG_
-
-	logfile.close();
-}
-
-void RSLog(const wchar_t *str)
-{
-	ofstream logfile("logfile.log", ofstream::app);
-	auto t = time(nullptr);
-	logfile << ctime(&t) << "\t" << str << endl;
 	logfile.close();
 }
 
@@ -76,8 +68,9 @@ void handleRequest(http_request req)
 	RSLog("handling GET...");
 	auto ents = req.extract_json().get();
 	auto path = handleJson(ents);
-
+	RSLog("input json:");
 	RSLog(ents.serialize().c_str());
+	RSLog("output json:");
 	RSLog(path.serialize().c_str());
 	
 	req.reply(status_codes::OK, path);
