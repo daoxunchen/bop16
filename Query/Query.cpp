@@ -1,7 +1,6 @@
 #include "../Query.h"
 
 #include <iostream>
-#include <string>
 #include <cpprest/http_client.h>
 #include <cpprest/uri_builder.h>
 
@@ -15,7 +14,7 @@ using namespace web::http;
 using namespace web::http::client;
 using namespace web::json;
 
-pplx::task<http_response> baseHttpClient(QueryAttri qt, Id_type id)
+pplx::task<http_response> baseHttpClient(const wstring &expr, size_t count, size_t offset)
 {
 #ifndef QUERY_DEBUG_
 	http_client queryClient(U("https://oxfordhk.azure-api.net"));
@@ -30,29 +29,10 @@ pplx::task<http_response> baseHttpClient(QueryAttri qt, Id_type id)
 	builder.append_query(U("attributes"), U("Id,F.FId,AA.AuId,AA.AfId,J.JId,C.CId,RId"));
 	
 	////////////////////////////////////////////////////////
-	builder.append_query(U("count"), U("10000"));
-	builder.append_query(U("offset"), U("0"));
+	builder.append_query(U("count"), to_wstring(count));
+	builder.append_query(U("offset"), to_wstring(offset));
 	///////////////////////////////////////////////////////
-
-	string_t expr;
-	switch (qt) {
-	case QueryAttri::Id: expr = U("Id=") + to_wstring(id);
-		break;
-	case QueryAttri::FId: expr = U("Composite(F.FId=") + to_wstring(id) + U(")");
-		break;
-	case QueryAttri::JId: expr = U("Composite(J.JId=") + to_wstring(id) + U(")");
-		break;
-	case QueryAttri::CId: expr = U("Composite(C.CId=") + to_wstring(id) + U(")");
-		break;
-	case QueryAttri::AuId: expr = U("Composite(AA.AuId=") + to_wstring(id) + U(")");
-		break;
-	case QueryAttri::AfId: expr = U("Composite(AA.AfId=") + to_wstring(id) + U(")");
-		break;
-	case QueryAttri::RId: expr = U("RId=") + to_wstring(id);
-		break;
-	default:
-		break;
-	}
+	
 	builder.append_query(U("expr"), expr);
 	return queryClient.request(methods::GET, builder.to_string());
 }
@@ -158,20 +138,31 @@ void JsonToEntities(const json::value &val, vector<entity> &ents)
 
 void queryEntity(QueryAttri qa, Id_type &id, Entity_List &ents, size_t count, size_t offset)
 {
-	auto query= baseHttpClient(QueryAttri::Id, id).then(
-		extractResponse).then(extractJson).then(
-			[&](json::value val) {return JsonToEntities(val, ents); });
-	try {
-		query.get();
+	string_t expr;
+	switch (qa) {
+	case QueryAttri::Id: expr = U("Id=") + to_wstring(id);
+	break;
+	case QueryAttri::FId: expr = U("Composite(F.FId=") + to_wstring(id) + U(")");
+	break;
+	case QueryAttri::JId: expr = U("Composite(J.JId=") + to_wstring(id) + U(")");
+	break;
+	case QueryAttri::CId: expr = U("Composite(C.CId=") + to_wstring(id) + U(")");
+	break;
+	case QueryAttri::AuId: expr = U("Composite(AA.AuId=") + to_wstring(id) + U(")");
+	break;
+	case QueryAttri::AfId: expr = U("Composite(AA.AfId=") + to_wstring(id) + U(")");
+	break;
+	case QueryAttri::RId: expr = U("RId=") + to_wstring(id);
+	break;
+	default:
+	break;
 	}
-	catch (exception &e) {
-		printf("Exception: %s\r\n", e.what());
-	}
+	queryCustom(expr, ents, count, offset);
 }
 
-void queryEntity(QueryAttri qa, Id_List &ids, Entity_List &ents, size_t count, size_t offset)
+void queryCustom(const wstring &expr, Entity_List &ents, size_t count, size_t offset)
 {
-	auto query = baseHttpClient(QueryAttri::Id, *ids.begin()).then(
+	auto query = baseHttpClient(expr, count, offset).then(
 		extractResponse).then(extractJson).then(
 			[&](json::value val) {return JsonToEntities(val, ents); });
 	try {
