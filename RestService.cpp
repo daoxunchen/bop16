@@ -43,43 +43,37 @@ void RSLog(const T str)
 	logfile.close();
 }
 
-json::value handleJson(json::value val)
-{
-	json::value res;
-	
-	if (val.is_array() && val.size() >= 2) {
-		auto ents = val.as_array();
-		Id_Type ids[2];
-		int i = 0;
-		for (auto iter = ents.cbegin(); iter != ents.cend(); ++iter) {
-			ids[i++] = iter->as_integer();
-		}
-		auto path = fp(ids[0], ids[1]);
-		for (size_t i = 0; i < path.size(); ++i) {
-			json::value tmp;
-			for (size_t j = 0; j < path[i].size(); ++j) {
-				tmp[j] = path[i].at(j);
-			}
-			res[i] = tmp;
-		}
-	}
-
-	return res;
-}
-
 void handleRequest(http_request req)
 {
 	RSLog("**handling request...");
+
+#ifdef AGG_DEBUG_
 	RSLog(req.to_string());
-	auto ents = req.extract_json().get();
-	auto path = handleJson(ents);
-	RSLog("&input json:");
-	RSLog(ents.serialize());
+#endif // AGG_DEBUG_
+
+	auto q = uri::split_query(req.relative_uri().query());
+
+	auto iter = q.cbegin();
+
+	Id_Type start = stoll(iter->second);
+	Id_Type end = stoll((++iter)->second);
+
+	json::value res;
+	auto path = fp(start, end);
+	for (size_t i = 0; i < path.size(); ++i) {
+		json::value tmp;
+		for (size_t j = 0; j < path[i].size(); ++j) {
+			tmp[j] = path[i].at(j);
+		}
+		res[i] = tmp;
+	}
+
+	req.reply(status_codes::OK, res);
+
+	RSLog("input:" + to_wstring(start));// +":" + to_string(end));
 	RSLog("&output json:");
-	RSLog(path.serialize());
-	
-	req.reply(status_codes::OK, path);
-	RSLog("**handling over.");
+	RSLog(res.serialize());
+	RSLog("**handling over.\n");
 }
 
 void handleLog(http_request req)
@@ -101,11 +95,12 @@ void handleClean(http_request req)
 
 int main()
 {
-	http_listener listener(U("http://*"));
+	http_listener listener(U("http://*/test"));
 	http_listener loger(U("http://*/log"));
 	http_listener cleaner(U("http://*/clean"));
 
-	listener.support(handleRequest);
+	listener.support(methods::GET, handleRequest);
+	//listener.support(handleRequest);
 	loger.support(handleLog);
 	cleaner.support(handleClean);
 
