@@ -70,10 +70,12 @@ void handleRequest(http_request req)
 
 	req.reply(status_codes::OK, res);
 
-	RSLog("input:" + to_wstring(start));// +":" + to_string(end));
-	RSLog("&output json:");
-	RSLog(res.serialize());
-	RSLog("**handling over.\n");
+	wstring strLog(L"input:");
+	strLog += to_wstring(start) + L":" + to_wstring(end);
+	strLog += L"\n&output json:";
+	strLog += res.serialize();
+	strLog += L"**handling over.\n";
+	RSLog(strLog);
 }
 
 void handleLog(http_request req)
@@ -88,11 +90,6 @@ void handleLog(http_request req)
 	logfile.close();
 }
 
-void handleClean(http_request req)
-{
-	remove("REST.log");
-}
-
 int main()
 {
 	http_listener listener(U("http://*/test"));
@@ -100,9 +97,8 @@ int main()
 	http_listener cleaner(U("http://*/clean"));
 
 	listener.support(methods::GET, handleRequest);
-	//listener.support(handleRequest);
 	loger.support(handleLog);
-	cleaner.support(handleClean);
+	cleaner.support([](http_request req) {remove("REST.log"); });
 
 	HMODULE hDll = LoadLibrary(dllName);
 	if (hDll == NULL) {
