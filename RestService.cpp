@@ -9,6 +9,7 @@
 #include <vector>
 #include <fstream>
 #include <ctime>
+#include <thread>
 #include <Windows.h>
 
 #include <cpprest\http_listener.h>
@@ -30,11 +31,14 @@ FUNA fp = nullptr;
 template<typename T>
 void RSLog(const T str)
 {
-	ofstream logfile("logfile.log", ofstream::app);
-	auto t = time(nullptr);
-	logfile << ctime(&t) << '\t' << str << endl;
+	wofstream logfile("REST.log", wofstream::app);
+	time_t Time = time(nullptr);
+	auto strTime = ctime(&Time);
+	wstring res(strTime + 4, strTime + 19);	// remove year and week
+	res.append(L"    \t");
+	logfile << res << str << endl;
 #ifdef AGG_DEBUG_
-	cout << ctime(&t) << '\t' << str << endl;
+	wcout << res << str << endl;
 #endif // AGG_DEBUG_
 	logfile.close();
 }
@@ -65,22 +69,45 @@ json::value handleJson(json::value val)
 
 void handleRequest(http_request req)
 {
-	RSLog("handling GET...");
+	RSLog("**handling request...");
+	RSLog(req.to_string());
 	auto ents = req.extract_json().get();
 	auto path = handleJson(ents);
-	RSLog("input json:");
-	RSLog(ents.serialize().c_str());
-	RSLog("output json:");
-	RSLog(path.serialize().c_str());
+	RSLog("&input json:");
+	RSLog(ents.serialize());
+	RSLog("&output json:");
+	RSLog(path.serialize());
 	
 	req.reply(status_codes::OK, path);
-	RSLog("handling over.");
+	RSLog("**handling over.");
+}
+
+void handleLog(http_request req)
+{
+	ifstream logfile("REST.log");
+	if (!logfile) {
+		req.reply(status_codes::OK);
+		return;
+	}
+	string tmp((istreambuf_iterator<char>(logfile)), istreambuf_iterator<char>());
+	req.reply(status_codes::OK, tmp);
+	logfile.close();
+}
+
+void handleClean(http_request req)
+{
+	remove("REST.log");
 }
 
 int main()
 {
 	http_listener listener(U("http://*"));
-	listener.support(methods::GET, handleRequest);
+	http_listener loger(U("http://*/log"));
+	http_listener cleaner(U("http://*/clean"));
+
+	listener.support(handleRequest);
+	loger.support(handleLog);
+	cleaner.support(handleClean);
 
 	HMODULE hDll = LoadLibrary(dllName);
 	if (hDll == NULL) {
@@ -95,16 +122,24 @@ int main()
 	}
 
 	try {
+		auto threadLog = loger.open();
+		thread httpLog([&] { threadLog.wait(); });
+		auto threadClean = cleaner.open();
+		thread httpClean([&] {threadClean.wait(); });
+		
+		httpLog.join();
+		httpClean.join();
+
 		listener
 			.open()
 			.then([=]() {
-			RSLog("start listening...");
-			}).wait();
-
+			RSLog("###### start listening...");
+			}).get();
+		
 		while (true);
 	}
 	catch (const std::exception& e) {
-		RSLog("\t\t\tException: ");
+		RSLog("@@@@@@Exception: ");
 		RSLog(e.what());
 	}
 
