@@ -1,15 +1,24 @@
 #define _CRT_SECURE_NO_WARNINGS
 
+#define NOT_COMPETE_MODE
+
 #define AGG_DEBUG_
+
+#ifndef NOT_COMPETE_MODE
+#undef AGG_DEBUG_
+#endif
 
 #ifdef AGG_DEBUG_
 #include <iostream>
+#include <thread>
 #endif // AGG_DEBUG_
 
-#include <vector>
-#include <fstream>
+#ifdef NOT_COMPETE_MODE
 #include <ctime>
-#include <thread>
+#include <fstream>
+#endif // !COMPETE_MODE
+
+#include <vector>
 #include <Windows.h>
 
 #include <cpprest\http_listener.h>
@@ -22,12 +31,14 @@ using namespace web::http::experimental::listener;
 
 using Id_Type = __int64;
 
-typedef vector<vector<Id_Type>>(*FUNA)(Id_Type&, Id_Type&);
+typedef vector<Id_Type>(*FUNA)(Id_Type&, Id_Type&);
 
 const char* dllName = "findPath.dll";
 const char* funName = "findPath";
 FUNA fp = nullptr;
 
+
+#ifdef NOT_COMPETE_MODE
 template<typename T>
 void RSLog(const T str)
 {
@@ -42,14 +53,17 @@ void RSLog(const T str)
 #endif // AGG_DEBUG_
 	logfile.close();
 }
+#endif
 
 void handleRequest(http_request req)
 {
+#ifdef NOT_COMPETE_MODE
 	RSLog("**handling request...");
 
 #ifdef AGG_DEBUG_
 	RSLog(req.to_string());
 #endif // AGG_DEBUG_
+#endif // NOT_COMPETE_MODE
 
 	auto q = uri::split_query(req.relative_uri().query());
 
@@ -60,24 +74,30 @@ void handleRequest(http_request req)
 
 	json::value res;
 	auto path = fp(start, end);
-	for (size_t i = 0; i < path.size(); ++i) {
+	for (size_t i = 0; i < path.size() / 4; ++i) {
 		json::value tmp;
-		for (size_t j = 0; j < path[i].size(); ++j) {
-			tmp[j] = path[i].at(j);
+		for (size_t j = 0; j < 4; ++j) {
+			auto tmpid = path[4 * i + j];
+			if (tmpid == 0) break;
+			tmp[j] = tmpid;
 		}
 		res[i] = tmp;
 	}
 
 	req.reply(status_codes::OK, res);
 
+#ifdef NOT_COMPETE_MODE
 	wstring strLog(L"input:");
 	strLog += to_wstring(start) + L":" + to_wstring(end);
-	strLog += L"\n&output json:";
-	strLog += res.serialize();
-	strLog += L"**handling over.\n";
 	RSLog(strLog);
+	strLog = L"\n&output json:";
+	strLog += res.serialize();
+	RSLog(strLog);
+	RSLog("**handling over.\n");
+#endif // !COMPETE_MODE
 }
 
+#ifdef AGG_DEBUG_
 void handleLog(http_request req)
 {
 	ifstream logfile("REST.log");
@@ -89,43 +109,59 @@ void handleLog(http_request req)
 	req.reply(status_codes::OK, tmp);
 	logfile.close();
 }
+#endif // AGG_DEBUG_
 
 int main()
 {
-	http_listener listener(U("http://*/test"));
+#ifdef AGG_DEBUG_
 	http_listener loger(U("http://*/log"));
 	http_listener cleaner(U("http://*/clean"));
 
-	listener.support(methods::GET, handleRequest);
 	loger.support(handleLog);
 	cleaner.support([](http_request req) {remove("REST.log"); });
+#endif // AGG_DEBUG_
+	
+	http_listener listener(U("http://*/test"));
+	listener.support(methods::GET, handleRequest);
 
 	HMODULE hDll = LoadLibrary(dllName);
 	if (hDll == NULL) {
+#ifdef NOT_COMPETE_MODE
 		RSLog("Load Dll Err.");
+#endif // COMPETE_MODE
 		return 1;
 	}
 	fp = FUNA(GetProcAddress(hDll, funName));
 	if (fp == nullptr) {
+#ifdef NOT_COMPETE_MODE
 		RSLog("Load Function Err.");
+#endif
 		FreeLibrary(hDll);
 		return 2;
 	}
 
 	try {
+
+#ifdef AGG_DEBUG_
 		auto threadLog = loger.open();
 		thread httpLog([&] { threadLog.wait(); });
 		auto threadClean = cleaner.open();
 		thread httpClean([&] {threadClean.wait(); });
-		
+
 		httpLog.join();
 		httpClean.join();
-
+#endif // AGG_DEBUG_
+		
 		listener
 			.open()
-			.then([=]() {
+#ifdef NOT_COMPETE_MODE
+			.then([=]() 
+		{
 			RSLog("###### start listening...");
-			}).get();
+		})
+#endif // !NOT_COMPETE_MODE
+			
+			.get();
 		
 		while (true);
 	}
@@ -138,6 +174,8 @@ int main()
 	FreeLibrary(hDll);
 
 #ifdef AGG_DEBUG_
+	loger.close();
+	cleaner.close();
 	system("pause");
 #endif // AGG_DEBUG_
 	return 0;
