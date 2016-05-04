@@ -1,10 +1,11 @@
 #include "../Query.h"
 
-#include <iostream>
+#define ACY
+#define QUERY_DEBUG_
+
+
 #include <cpprest/http_client.h>
 #include <cpprest/uri_builder.h>
-
-//#define QUERY_DEBUG_
 
 using namespace std;
 
@@ -16,13 +17,13 @@ using namespace web::json;
 
 pplx::task<http_response> baseHttpClient(const wstring &expr, size_t count, size_t offset)
 {
-#ifndef QUERY_DEBUG_
+#ifndef ACY
 	http_client queryClient(U("https://oxfordhk.azure-api.net"));
 #else
 	http_client_config quertConfig;
 	quertConfig.set_proxy(web_proxy(U("http://127.0.0.1:1080")));
 	http_client queryClient(U("https://oxfordhk.azure-api.net"), quertConfig);
-#endif // QUERY_DEBUG_
+#endif // ACY
 
 	uri_builder builder(U("/academic/v1.0/evaluate"));
 	builder.append_query(U("subscription-key"), U("f7cc29509a8443c5b3a5e56b0e38b5a6"));
@@ -75,16 +76,13 @@ QueryAttri Attri(string_t attr)
 		case U('f'): return QueryAttri::AfId;
 		}
 	}
-		
 	}
 }
 
 void JsonToEntities(const json::value &val, vector<entity> &ents)
 {
 	if (val.is_null()) return;
-#ifdef QUERY_DEBUG_
-	cout << "run to here 2" << endl;
-#endif // QUERY_DEBUG_
+
 	auto valarray = val.as_array();
 	for (auto iter = valarray.cbegin(); iter != valarray.cend(); ++iter) {
 		auto ent = iter->as_object();
