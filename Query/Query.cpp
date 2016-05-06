@@ -3,7 +3,6 @@
 #define ACY
 #define QUERY_DEBUG_
 
-
 #include <cpprest/http_client.h>
 #include <cpprest/uri_builder.h>
 
