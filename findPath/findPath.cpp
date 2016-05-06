@@ -28,6 +28,8 @@ vector<vector<Id_type>> findPath(Id_type id1, Id_type id2)
 	queryCustom(L"OR(Id=" + to_wstring(id1) + L",Composite(AA.AuId=" + to_wstring(id1) + L"))", startEntities);
 	queryCustom(L"OR(Id=" + to_wstring(id2) + L",Composite(AA.AuId=" + to_wstring(id2) + L"))", endEntities);
 
+	if (startEntities.empty() || endEntities.empty()) return res;	//	sth wrong happened (network or bad id)
+
 	if (startEntities[0].Id == id1) label[0] = QueryAttri::Id;	// id1 is Id
 	else label[0] = QueryAttri::AuId;	//	id1 is Auid
 	if (endEntities[0].Id == id2) label[1] = QueryAttri::Id;	// id2
