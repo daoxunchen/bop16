@@ -29,9 +29,9 @@ using namespace web;
 using namespace web::http;
 using namespace web::http::experimental::listener;
 
-using Id_Type = __int64;
+using Id_type = __int64;
 
-typedef vector<Id_Type>(*FUNA)(Id_Type&, Id_Type&);
+typedef vector<vector<Id_type>>(*FUNA)(Id_type&, Id_type&);
 
 const char* dllName = "findPath.dll";
 const char* funName = "findPath";
@@ -69,17 +69,15 @@ void handleRequest(http_request req)
 
 	auto iter = q.cbegin();
 
-	Id_Type start = stoll(iter->second);
-	Id_Type end = stoll((++iter)->second);
+	Id_type start = stoll(iter->second);
+	Id_type end = stoll((++iter)->second);
 
 	json::value res;
 	auto path = fp(start, end);
-	for (size_t i = 0; i < path.size() / 4; ++i) {
+	for (size_t i = 0; i < path.size(); ++i) {
 		json::value tmp;
-		for (size_t j = 0; j < 4; ++j) {
-			auto tmpid = path[4 * i + j];
-			if (tmpid == 0) break;
-			tmp[j] = tmpid;
+		for (size_t j = 0; j < path[i].size(); ++j) {
+			tmp[j] = path[i].at(j);
 		}
 		res[i] = tmp;
 	}
