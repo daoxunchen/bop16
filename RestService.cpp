@@ -31,7 +31,7 @@ using namespace web::http::experimental::listener;
 
 using Id_type = __int64;
 
-typedef vector<vector<Id_type>>(*FUNA)(Id_type&, Id_type&);
+typedef vector<vector<Id_type>>(*FUNA)(Id_type, Id_type);
 
 const char* dllName = "findPath.dll";
 const char* funName = "findPath";
