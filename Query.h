@@ -12,7 +12,7 @@ enum class QueryAttri
 
 // this function didn't clear ents, just append the new entity
 // eg : queryEntity(QueryAttri::Id, 123, a);
-void queryEntity(QueryAttri qa, Id_type &id, Entity_List &ents,
+void queryEntity(QueryAttri qa, Id_type id, Entity_List &ents,
 	size_t count = 10000, size_t offset = 0);
 
 // 

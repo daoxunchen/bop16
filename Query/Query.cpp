@@ -133,7 +133,7 @@ void JsonToEntities(const json::value &val, vector<entity> &ents)
 	}
 }
 
-void queryEntity(QueryAttri qa, Id_type &id, Entity_List &ents, size_t count, size_t offset)
+void queryEntity(QueryAttri qa, Id_type id, Entity_List &ents, size_t count, size_t offset)
 {
 	string_t expr;
 	switch (qa) {
@@ -168,4 +168,10 @@ void queryCustom(const wstring &expr, Entity_List &ents, size_t count, size_t of
 	catch (exception &e) {
 		printf("Exception: %s\r\n", e.what());
 	}
+}
+
+void queryCustomAll(const wstring &expr, Entity_List &ents)
+{
+	//	TODO
+	queryCustom(expr, ents, 10000);
 }
