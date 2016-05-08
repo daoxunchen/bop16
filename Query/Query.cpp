@@ -1,6 +1,10 @@
 #include "../Query.h"
 
 #define ACY
+#ifdef ACY
+#include <iostream>
+#endif
+
 #define QUERY_DEBUG_
 
 #include <cpprest/http_client.h>
@@ -78,7 +82,7 @@ QueryAttri Attri(string_t attr)
 	}
 }
 
-void JsonToEntities(const json::value &val, vector<entity> &ents)
+void JsonToEntities(const json::value &val, vector<entity> &ents, mutex &mtx = mutex())
 {
 	if (val.is_null()) return;
 
@@ -89,19 +93,19 @@ void JsonToEntities(const json::value &val, vector<entity> &ents)
 		for (auto iter2 = ent.cbegin(); iter2 != ent.cend(); ++iter2) {
 			switch (Attri(iter2->first)) {
 			case QueryAttri::Id:
-				e.Id = iter2->second.as_integer();
+				e.Id = iter2->second.as_number().to_int64();
 				break;
 			case QueryAttri::FId: {
 				auto Fs = iter2->second.as_array();
 				for (auto iterF = Fs.cbegin(); iterF != Fs.cend(); ++iterF) {
-					e.F_Id.push_back(iterF->at(U("FId")).as_integer());
+					e.F_Id.emplace_back(iterF->at(U("FId")).as_number().to_int64());
 				}
 			}break;
 			case QueryAttri::JId:
-				e.J_Id = (iter2->second).as_object().at(U("JId")).as_integer();
+				e.J_Id = (iter2->second).as_object().at(U("JId")).as_number().to_int64();
 				break;
 			case QueryAttri::CId:
-				e.C_Id = (iter2->second).as_object().at(U("CId")).as_integer();
+				e.C_Id = (iter2->second).as_object().at(U("CId")).as_number().to_int64();
 				break;
 			case QueryAttri::AA: {
 				auto As = iter2->second.as_array();
@@ -111,57 +115,52 @@ void JsonToEntities(const json::value &val, vector<entity> &ents)
 					for (auto iteraa = aa.cbegin(); iteraa != aa.cend(); ++iteraa) {
 						switch (Attri(iteraa->first)) {
 						case QueryAttri::AfId:
-							a.AfId = iteraa->second.as_integer();
+							a.AfId = iteraa->second.as_number().to_int64();
 							break;
 						case QueryAttri::AuId:
-							a.AuId = iteraa->second.as_integer();
+							a.AuId = iteraa->second.as_number().to_int64();
 							break;
 						}
 					}
-					e.AAs.push_back(a);
+					e.AAs.emplace_back(a);
 				}
 			}break;
-			case QueryAttri::RId:{
+			case QueryAttri::RId: {
 				auto Rs = iter2->second.as_array();
 				for (auto iterR = Rs.cbegin(); iterR != Rs.cend(); ++iterR) {
-					e.R_Id.push_back(iterR->as_integer());
+					e.R_Id.emplace_back(iterR->as_number().to_int64());
 				}
 			}break;
 			}
 		}
-		ents.push_back(e);
+		mtx.lock();
+		ents.emplace_back(e);
+		mtx.unlock();
 	}
-}
-
-void queryEntity(QueryAttri qa, Id_type id, Entity_List &ents, size_t count, size_t offset)
-{
-	string_t expr;
-	switch (qa) {
-	case QueryAttri::Id: expr = U("Id=") + to_wstring(id);
-	break;
-	case QueryAttri::FId: expr = U("Composite(F.FId=") + to_wstring(id) + U(")");
-	break;
-	case QueryAttri::JId: expr = U("Composite(J.JId=") + to_wstring(id) + U(")");
-	break;
-	case QueryAttri::CId: expr = U("Composite(C.CId=") + to_wstring(id) + U(")");
-	break;
-	case QueryAttri::AuId: expr = U("Composite(AA.AuId=") + to_wstring(id) + U(")");
-	break;
-	case QueryAttri::AfId: expr = U("Composite(AA.AfId=") + to_wstring(id) + U(")");
-	break;
-	case QueryAttri::RId: expr = U("RId=") + to_wstring(id);
-	break;
-	default:
-	break;
-	}
-	queryCustom(expr, ents, count, offset);
 }
 
 void queryCustom(const wstring &expr, Entity_List &ents, size_t count, size_t offset)
 {
-	auto query = baseHttpClient(expr, count, offset).then(
-		extractResponse).then(extractJson).then(
-			[&](json::value val) {return JsonToEntities(val, ents); });
+	auto query = baseHttpClient(expr, count, offset)
+		.then(extractResponse)
+		.then(extractJson)
+		.then([&](json::value val) {return JsonToEntities(val, ents); });
+
+	try {
+		query.get();
+	}
+	catch (exception &e) {
+		printf("Exception: %s\r\n", e.what());
+	}
+}
+
+void queryCustomLock(const wstring &expr, Entity_List &ents, mutex &mtx, size_t count, size_t offset)
+{
+	auto query = baseHttpClient(expr, count, offset)
+		.then(extractResponse)
+		.then(extractJson)
+		.then([&](json::value val) {return JsonToEntities(val, ents, mtx); });
+
 	try {
 		query.get();
 	}
@@ -172,6 +171,5 @@ void queryCustom(const wstring &expr, Entity_List &ents, size_t count, size_t of
 
 void queryCustomAll(const wstring &expr, Entity_List &ents)
 {
-	//	TODO
 	queryCustom(expr, ents, 10000);
 }

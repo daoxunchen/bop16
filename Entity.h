@@ -2,7 +2,7 @@
 
 #include <vector>
 
-using Id_type = __int64;
+using Id_type = long long;
 
 struct AA
 {
@@ -10,7 +10,8 @@ struct AA
 	Id_type AfId = 0;
 };
 
-struct entity{
+struct entity
+{
 	Id_type Id = 0;
 	Id_type J_Id = 0;
 	Id_type C_Id = 0;
@@ -20,3 +21,5 @@ struct entity{
 };
 
 using Entity_List = std::vector<entity>;
+using path_t = std::vector<Id_type>;
+using paths_t = std::vector<path_t>;

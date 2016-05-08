@@ -29,14 +29,13 @@ using namespace web;
 using namespace web::http;
 using namespace web::http::experimental::listener;
 
-using Id_type = __int64;
+using Id_type = long long;
 
 typedef vector<vector<Id_type>>(*FUNA)(Id_type, Id_type);
 
 const char* dllName = "findPath.dll";
 const char* funName = "findPath";
 FUNA fp = nullptr;
-
 
 #ifdef NOT_COMPETE_MODE
 template<typename T>
@@ -61,17 +60,16 @@ void handleRequest(http_request req)
 	RSLog("**handling request...");
 
 #ifdef AGG_DEBUG_
-	RSLog(req.to_string());
+	//RSLog(L"\n" + req.to_string());
+	RSLog(req.absolute_uri().to_string());
 #endif // AGG_DEBUG_
 #endif // NOT_COMPETE_MODE
 
 	auto q = uri::split_query(req.relative_uri().query());
-
-	auto iter = q.cbegin();
-
-	Id_type start = stoll(iter->second);
-	Id_type end = stoll((++iter)->second);
-
+	
+	Id_type start = stoll(q[U("id1")]);
+	Id_type end = stoll(q[U("id2")]);
+	
 	json::value res;
 	auto path = fp(start, end);
 	for (size_t i = 0; i < path.size(); ++i) {
@@ -166,6 +164,7 @@ int main()
 	catch (const std::exception& e) {
 		RSLog("@@@@@@Exception: ");
 		RSLog(e.what());
+		FreeLibrary(hDll);
 	}
 
 	listener.close();
