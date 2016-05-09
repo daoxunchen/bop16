@@ -27,8 +27,7 @@ AuId1 <--> AfId2	AuId1.AfId == AfId2
 using namespace std;
 
 //	function declaration
-paths_t _2hop_Id_Id_Id(const entity &ent1, const entity &ent2);
-paths_t _2hop_Id_Id_Id(const entity &ent1, const entity &ent2, Entity_List &queryRes);
+paths_t _2hop_Id_Id_Id(const entity &ent1, const entity &ent2, Entity_List &queryRes = Entity_List());
 paths_t _2hop_Id_Others_Id(const entity &ent1, const entity &ent2);
 void _2hop_Id_AuId();	// note: only can be used in Id-AuId-2hop
 void _2hop_AuId_Id();
@@ -221,17 +220,21 @@ paths_t findPath(Id_type id1, Id_type id2)
 			thread step1_2(_2hop_AuId_Id);	//	AuId-Id-Id
 			//	3-hop
 			thread step1_3([&]() {	//	AuId-AfId-AuId-Id
-				paths_t res;
-				for each (auto var in endEntities[0].AAs) {
-					auto res1 = _2hop_AuId_AfId_AuId(startId, var.AuId, startEntities, endEntities);
-					for each (auto var1 in res1) {
-						res.emplace_back(path_t({ startId,var1[1],var1[2],endId }));
-					}
+				vector<thread> ths(endEntities[0].AAs.size());
+				for (size_t i = 0; i < endEntities[0].AAs.size(); ++i) {
+					ths[i] = thread([&, i]() {
+						auto res1 = _2hop_AuId_AfId_AuId(startId, endEntities[0].AAs[i].AuId, startEntities);
+						if (res1.empty()) return;
+						paths_t res;
+						for each (auto var1 in res1) {
+							res.emplace_back(path_t({ startId,var1[1],var1[2],endId }));
+						}
+						AGG_mtx.lock();
+						copy(res.cbegin(), res.cend(), back_inserter(AGG_Path));
+						AGG_mtx.unlock();
+					});
 				}
-				if (res.empty()) return;
-				AGG_mtx.lock();
-				copy(res.cbegin(), res.cend(), back_inserter(AGG_Path));
-				AGG_mtx.unlock();
+				for_each(ths.begin(), ths.end(), [](thread &th) {th.join(); });
 			});
 			thread step1_4(_3hop_AuId_Id_Others_Id);
 			thread step1_5(_3hop_AuId_Id_Id_Id);
@@ -275,12 +278,6 @@ paths_t findPath(Id_type id1, Id_type id2)
 #endif // AGG_DEBUG_
 	
 	return AGG_Path;
-}
-
-paths_t _2hop_Id_Id_Id(const entity &ent1, const entity &ent2)
-{
-	Entity_List queryRes;
-	return _2hop_Id_Id_Id(ent1, ent2, queryRes);
 }
 
 paths_t _2hop_Id_Id_Id(const entity &ent1, const entity &ent2, Entity_List &queryRes)
@@ -372,7 +369,7 @@ paths_t _2hop_AuId_AfId_AuId(Id_type id1, Id_type id2, Entity_List & ls1, Entity
 {
 	paths_t res;
 	//if (ls1.empty()) queryCustom(AUID(id1), ls1);
-	//if (ls2.empty()) queryCustom(AUID(id2), ls2);
+	if (ls2.empty()) queryCustom(AUID(id2), ls2);
 
 	//	AuId-AfId-AuId
 	set<Id_type> AfIds;
@@ -479,17 +476,18 @@ void _3hop_AuId_Id_Id_Id()
 
 void _3hop_AuId_AuId()	//	AuId-Id-Id-AuId
 {
-	paths_t res;
-	for each (auto var in endEntities) {
-		for each (auto var1 in startEntities) {
-			if (var1.R_Id.empty()) continue;
-			if (find(var1.R_Id.cbegin(), var1.R_Id.cend(), var.Id) != var1.R_Id.cend()) {
-				res.emplace_back(path_t({ startId,var1.Id,var.Id,endId }));
+	vector<thread> ths(endEntities.size());
+	for (size_t i = 0; i < endEntities.size(); ++i) {
+		ths[i] = thread([&, i]() {
+			for each (auto var1 in startEntities) {
+				if (var1.R_Id.empty()) continue;
+				if (find(var1.R_Id.cbegin(), var1.R_Id.cend(), endEntities[i].Id) != var1.R_Id.cend()) {
+					AGG_mtx.lock();
+					AGG_Path.emplace_back(path_t({ startId,var1.Id,endEntities[i].Id,endId }));
+					AGG_mtx.unlock();
+				}
 			}
-		}
+		});
 	}
-	if (res.empty()) return;
-	AGG_mtx.lock();
-	copy(res.cbegin(), res.cend(), back_inserter(AGG_Path));
-	AGG_mtx.unlock();
+	for_each(ths.begin(), ths.end(), [](thread &th) {th.join(); });
 }
