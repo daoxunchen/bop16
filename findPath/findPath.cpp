@@ -285,17 +285,18 @@ paths_t _2hop_Id_Id_Id(const entity &ent1, const entity &ent2)
 
 paths_t _2hop_Id_Id_Id(const entity &ent1, const entity &ent2, Entity_List &queryRes)
 {
+	paths_t res;
+	if (ent1.R_Id.empty()) return res;
 	mutex RIdEntsMtx;
 	vector<thread> queryThreads(ent1.R_Id.size());
 	for (size_t i = 0; i < queryThreads.size(); ++i) {
-		queryThreads.at(i) = thread([&]() {
-			queryCustomLock(ID(ent1.R_Id.at(i)), queryRes, RIdEntsMtx);
+		queryThreads[i] = thread([&, i]() {
+			queryCustomLock(AND_ID_RID(ent1.R_Id[i], ent2.Id), queryRes, RIdEntsMtx);
 		});
 	}
 	for_each(queryThreads.begin(), queryThreads.end(), 
 		[](thread &th) {if(th.joinable()) th.join(); });
 	
-	paths_t res;
 	for each (auto var in queryRes) {
 		if (find(var.R_Id.cbegin(), var.R_Id.cend(), ent2.Id) != var.R_Id.cend()) {
 			res.emplace_back(path_t({ ent1.Id,var.Id,ent2.Id }));
@@ -455,12 +456,21 @@ void _3hop_AuId_Id_Others_Id()
 void _3hop_AuId_Id_Id_Id()
 {
 	paths_t res;
-	for each (auto var in startEntities) {
-		paths_t res1 = _2hop_Id_Id_Id(var, endEntities[0]);
-		for each (auto var2 in res1) {
-			res.emplace_back(path_t({ startId,var2[0],var2[1],endId }));
-		}
+	mutex resMtx;
+	vector<thread> ths(startEntities.size());
+	for (size_t i = 0; i < startEntities.size(); ++i) {
+		ths[i] = thread([&, i]() {
+			paths_t res1 = _2hop_Id_Id_Id(startEntities[i], endEntities[0]);
+			if (res1.empty()) return;
+			for each (auto var2 in res1) {
+				resMtx.lock();
+				res.emplace_back(path_t({ startId,var2[0],var2[1],endId }));
+				resMtx.unlock();
+			}
+		});
 	}
+	for_each(ths.begin(), ths.end(), [](thread &th) {th.join(); });
+
 	if (res.empty()) return;
 	AGG_mtx.lock();
 	copy(res.cbegin(), res.cend(), back_inserter(AGG_Path));
@@ -472,6 +482,7 @@ void _3hop_AuId_AuId()	//	AuId-Id-Id-AuId
 	paths_t res;
 	for each (auto var in endEntities) {
 		for each (auto var1 in startEntities) {
+			if (var1.R_Id.empty()) continue;
 			if (find(var1.R_Id.cbegin(), var1.R_Id.cend(), var.Id) != var1.R_Id.cend()) {
 				res.emplace_back(path_t({ startId,var1.Id,var.Id,endId }));
 			}
