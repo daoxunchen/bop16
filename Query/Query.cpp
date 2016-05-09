@@ -7,6 +7,7 @@
 
 #define QUERY_DEBUG_
 
+#include <iterator>
 #include <cpprest/http_client.h>
 #include <cpprest/uri_builder.h>
 
@@ -82,7 +83,7 @@ QueryAttri Attri(string_t attr)
 	}
 }
 
-void JsonToEntities(const json::value &val, vector<entity> &ents, mutex &mtx = mutex())
+void JsonToEntities(const json::value &val, vector<entity> &ents)
 {
 	if (val.is_null()) return;
 
@@ -133,10 +134,66 @@ void JsonToEntities(const json::value &val, vector<entity> &ents, mutex &mtx = m
 			}break;
 			}
 		}
-		mtx.lock();
 		ents.emplace_back(e);
-		mtx.unlock();
 	}
+}
+
+void JsonToEntities(const json::value &val, vector<entity> &ents, mutex &mtx)
+{
+	if (val.is_null()) return;
+	vector<entity> tmpEnts;
+	auto valarray = val.as_array();
+	for (auto iter = valarray.cbegin(); iter != valarray.cend(); ++iter) {
+		auto ent = iter->as_object();
+		entity e;
+		for (auto iter2 = ent.cbegin(); iter2 != ent.cend(); ++iter2) {
+			switch (Attri(iter2->first)) {
+			case QueryAttri::Id:
+				e.Id = iter2->second.as_number().to_int64();
+				break;
+			case QueryAttri::FId: {
+				auto Fs = iter2->second.as_array();
+				for (auto iterF = Fs.cbegin(); iterF != Fs.cend(); ++iterF) {
+					e.F_Id.emplace_back(iterF->at(U("FId")).as_number().to_int64());
+				}
+			}break;
+			case QueryAttri::JId:
+				e.J_Id = (iter2->second).as_object().at(U("JId")).as_number().to_int64();
+				break;
+			case QueryAttri::CId:
+				e.C_Id = (iter2->second).as_object().at(U("CId")).as_number().to_int64();
+				break;
+			case QueryAttri::AA: {
+				auto As = iter2->second.as_array();
+				for (auto iterAA = As.cbegin(); iterAA != As.cend(); ++iterAA) {
+					AA a;
+					auto aa = iterAA->as_object();
+					for (auto iteraa = aa.cbegin(); iteraa != aa.cend(); ++iteraa) {
+						switch (Attri(iteraa->first)) {
+						case QueryAttri::AfId:
+							a.AfId = iteraa->second.as_number().to_int64();
+							break;
+						case QueryAttri::AuId:
+							a.AuId = iteraa->second.as_number().to_int64();
+							break;
+						}
+					}
+					e.AAs.emplace_back(a);
+				}
+			}break;
+			case QueryAttri::RId: {
+				auto Rs = iter2->second.as_array();
+				for (auto iterR = Rs.cbegin(); iterR != Rs.cend(); ++iterR) {
+					e.R_Id.emplace_back(iterR->as_number().to_int64());
+				}
+			}break;
+			}
+		}
+		tmpEnts.emplace_back(e);
+	}
+	mtx.lock();
+	copy(tmpEnts.begin(), tmpEnts.end(), back_inserter(ents));
+	mtx.unlock();
 }
 
 void queryCustom(const wstring &expr, Entity_List &ents, size_t count, size_t offset)
@@ -167,9 +224,4 @@ void queryCustomLock(const wstring &expr, Entity_List &ents, mutex &mtx, size_t 
 	catch (exception &e) {
 		printf("Exception: %s\r\n", e.what());
 	}
-}
-
-void queryCustomAll(const wstring &expr, Entity_List &ents)
-{
-	queryCustom(expr, ents, 10000);
 }
