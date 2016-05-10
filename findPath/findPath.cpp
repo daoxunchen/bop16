@@ -121,6 +121,9 @@ void findingPath()
 			cout << "Id-Id" << endl;
 #endif // AGG_DEBUG_
 			thread step1_1([&]() {
+#ifdef AGG_DEBUG_
+				auto thstart = clock();
+#endif
 				//	1-hop Id-Id
 				if (startEntities[0].R_Id.cend() !=
 					find(startEntities[0].R_Id.cbegin(), startEntities[0].R_Id.cend(), endId)) {
@@ -133,9 +136,16 @@ void findingPath()
 				AGG_mtx.lock();
 				copy(res.cbegin(), res.cend(), back_inserter(AGG_Path));
 				AGG_mtx.unlock();
+#ifdef AGG_DEBUG_
+				auto thend = clock();
+				cout << "Id-Id th1:" << thend - thstart << "ms" << endl;
+#endif
 			});
 			//	3-hop Id-Others-Id-Id
 			thread step1_2([&]() {
+#ifdef AGG_DEBUG_
+				auto thstart = clock();
+#endif
 				thread th1([&]() {	//	Id-CId-Id-Id
 					if (startEntities[0].C_Id == 0) return;
 					Entity_List tmp;
@@ -200,9 +210,16 @@ void findingPath()
 					for_each(ths.begin(), ths.end(), [](thread &th) {th.join(); });
 				});
 				th1.join(); th2.join(); th3.join(); th4.join();
+#ifdef AGG_DEBUG_
+				auto thend = clock();
+				cout << "Id-Id th2:" << thend - thstart << "ms" << endl;
+#endif
 			});
 			
 			thread step1_3([&]() {	// 2-hop Id-Id-*-Id
+#ifdef AGG_DEBUG_
+				auto thstart = clock();
+#endif
 				if (startEntities[0].R_Id.empty()) return;
 				vector<thread> ths(startEntities[0].R_Id.size());
 				for (size_t i = 0; i < startEntities[0].R_Id.size(); ++i) {
@@ -243,6 +260,10 @@ void findingPath()
 					});
 				}
 				for_each(ths.begin(), ths.end(), [](thread &th) {th.join(); });
+#ifdef AGG_DEBUG_
+				auto thend = clock();
+				cout << "Id-Id th3:" << thend - thstart << "ms" << endl;
+#endif
 			});
 			step1_1.join();
 			step1_2.join();
@@ -253,6 +274,9 @@ void findingPath()
 #endif // AGG_DEBUG_
 			//	1-hop
 			thread step1_1([&]() {	//	Id-AuId-1-hop
+#ifdef AGG_DEBUG_
+				auto thstart = clock();
+#endif
 				if (find_if(startEntities[0].AAs.cbegin(), startEntities[0].AAs.cend(),
 					[&](AA v) {return v.AuId == endId; }) != startEntities[0].AAs.cend()) {
 					AGG_mtx.lock();
@@ -463,22 +487,30 @@ paths_t _2hop_AuId_AfId_AuId(Id_type id1, Id_type id2, Entity_List & ls1, Entity
 
 	//	AuId-AfId-AuId
 	set<Id_type> AfIds;
-	for each (auto var in ls1) {
-		auto it = find_if(var.AAs.cbegin(), var.AAs.cend(), [&](AA a) {return a.AuId == id1; });
-		if (it != var.AAs.cend()) {
-			AfIds.insert(it->AfId);
+	thread th1([&]() {
+		for each (auto var in ls1) {
+			auto it = find_if(var.AAs.cbegin(), var.AAs.cend(), [&](AA a) {return a.AuId == id1; });
+			if (it != var.AAs.cend()) {
+				AfIds.insert(it->AfId);
+			}
 		}
-	}
-	AfIds.erase(0);
-	set<Id_type> AfIdCommon;
-	for each (auto var in ls2) {
-		auto it = find_if(var.AAs.cbegin(), var.AAs.cend(), [&](AA a) {return a.AuId == id2; });
-		if (it != var.AAs.cend() && AfIds.find(it->AfId) != AfIds.end()) {
-			AfIdCommon.insert(it->AfId);
+		AfIds.erase(0);
+	});
+	set<Id_type> AfIds2;
+	thread th2([&]() {
+		for each (auto var in ls2) {
+			auto it = find_if(var.AAs.cbegin(), var.AAs.cend(), [&](AA a) {return a.AuId == id2; });
+			if (it != var.AAs.cend()) {
+				AfIds2.insert(it->AfId);
+			}
 		}
-	}
-	for each (auto var in AfIdCommon) {
-		res.emplace_back(path_t({ id1,var,id2 }));
+	});
+	th1.join(); th2.join();
+
+	for each (auto var in AfIds2) {
+		if (AfIds.find(var) != AfIds.end()) {
+			res.emplace_back(path_t({ id1,var,id2 }));
+		}
 	}
 	
 	return res;
