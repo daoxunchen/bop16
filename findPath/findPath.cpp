@@ -41,51 +41,76 @@ void _3hop_AuId_Id_Id_Id();
 void _3hop_AuId_AuId();
 //	end declaration
 
+void findingPath();
+
 Id_type startId, endId;
-QueryAttri label[2];
 Entity_List startEntities, endEntities;
-Entity_List RIdEntities;	// whose RId == id2
 paths_t AGG_Path;	// final result
 mutex AGG_mtx;		// mutex for AGG_Path
 
+volatile bool finding;	// finding process is over?
+
+clock_t start_time;
+
 paths_t findPath(Id_type id1, Id_type id2)
 {
-#ifdef AGG_DEBUG_
-	auto start_time = clock();
-#endif // AGG_DEBUG_
-	
+	start_time = clock();
+	finding = true;
+	startId = id1;
+	endId = id2;
+	thread findThread(findingPath);
+	findThread.detach();
+	AGG_mtx.lock();
 	AGG_Path.clear();	// clear All for a new process
+	AGG_mtx.unlock();
+	while (finding && ((clock() - start_time) < 250000));
 
+#ifdef AGG_DEBUG_
+	if (finding) {
+		cout << "running Time Out" << endl;
+	}
+	else {
+		cout << "Total running time: " << clock() - start_time << "ms" << endl;
+		cout << "Total path numbers:" << AGG_Path.size() << endl;
+	}
+#endif // AGG_DEBUG_
+
+	return AGG_Path;
+}
+
+void findingPath()
+{	
+	QueryAttri label[2];
 	thread startThread([&]() {
 		startEntities.clear();
-		startId = id1;
-		queryCustom(OR_ID_AUID(id1), startEntities);
+		queryCustom(OR_ID_AUID(startId), startEntities);
+		if (startEntities.size() == 1) label[0] = QueryAttri::Id;	// id1 is Id
+		else if(startEntities.size() > 1){
+			label[0] = QueryAttri::AuId;	//	id1 is Auid
+			startEntities.erase(startEntities.begin());
+		}
 	});
 	thread endThread([&]() {
 		endEntities.clear();
-		endId = id2;
-		queryCustom(OR_ID_AUID(id2), endEntities);
+		queryCustom(OR_ID_AUID(endId), endEntities);
+		if (endEntities.size() == 1) label[1] = QueryAttri::Id;	// id2
+		else if (endEntities.size() > 1) {
+			label[1] = QueryAttri::AuId;
+			endEntities.erase(endEntities.begin());
+		}
 	});
 	
 	startThread.join();
 	endThread.join();
 
-	if (startEntities.empty() || endEntities.empty()) return AGG_Path;	//	sth wrong happened (network or bad id)
-
-	if (startEntities.size() == 1) label[0] = QueryAttri::Id;	// id1 is Id
-	else {
-		label[0] = QueryAttri::AuId;	//	id1 is Auid
-		startEntities.erase(startEntities.begin());
-	}
-	if (endEntities.size() == 1) label[1] = QueryAttri::Id;	// id2
-	else {
-		label[1] = QueryAttri::AuId;
-		endEntities.erase(endEntities.begin());
+	if (startEntities.empty() || endEntities.empty()) {	//	sth wrong happened (network or bad id)
+		finding = false;
+		return;
 	}
 
 #ifdef AGG_DEBUG_
 	cout << "query size: " << startEntities.size() << ":" << endEntities.size() << endl;
-	cout << "query time: " << clock() - start_time << endl << "query type: ";
+	cout << "query time: " << clock() - start_time << "ms" << endl << "query type: ";
 	auto find_time = clock();
 #endif // AGG_DEBUG_
 
@@ -98,86 +123,114 @@ paths_t findPath(Id_type id1, Id_type id2)
 			thread step1_1([&]() {
 				//	1-hop Id-Id
 				if (startEntities[0].R_Id.cend() !=
-					find(startEntities[0].R_Id.cbegin(), startEntities[0].R_Id.cend(), id2)) {
-					AGG_Path.push_back(path_t({ id1,id2 }));
+					find(startEntities[0].R_Id.cbegin(), startEntities[0].R_Id.cend(), endId)) {
+					AGG_mtx.lock();
+					AGG_Path.push_back(path_t({ startId,endId }));
+					AGG_mtx.unlock();
 				}
-#ifdef AGG_DEBUG_
-				cout << "1-hop :" << AGG_Path.size() << endl;
-#endif // AGG_DEBUG_
+
 				auto res = _2hop_Id_Others_Id(startEntities[0], endEntities[0]);
-				copy(res.cbegin(), res.cend(), back_inserter(AGG_Path));
-#ifdef AGG_DEBUG_
-				cout << "2-hop Id-Others-Id over: " << res.size() << endl;
-#endif // AGG_DEBUG_
-			});
-			// 2-hop Id-Id-Id
-			Entity_List startRIdEnts;
-			thread step1_2([&]() {
-				auto res = _2hop_Id_Id_Id(startEntities[0], endEntities[0], startRIdEnts);
-				if (res.empty()) return;
 				AGG_mtx.lock();
 				copy(res.cbegin(), res.cend(), back_inserter(AGG_Path));
 				AGG_mtx.unlock();
-#ifdef AGG_DEBUG_
-				cout << "2-hop over" << endl;
-#endif // AGG_DEBUG_
 			});
-			step1_1.join();
-			step1_2.join();
-
-			thread step2_1([&]() {	//	3-hop Id-Id-Others-Id
-				for each (auto var in startRIdEnts) {
-					auto res = _2hop_Id_Others_Id(var, endEntities[0]);
-					paths_t res2;
-					for each (auto var1 in res) {
-						res2.emplace_back(path_t({ startId,var1[0],var1[1],var1[2] }));
-					}
-					if (res2.empty()) return;
-					AGG_mtx.lock();
-					copy(res2.cbegin(), res2.cend(), back_inserter(AGG_Path));
-					AGG_mtx.unlock();
-				}
-#ifdef AGG_DEBUG_
-				cout << "3-hop Id-Id-Others-Id over" << endl;
-#endif // AGG_DEBUG_
-			});
-			/*
-			thread step2_2([&]() {	// 3-hop Id-Id-Id-Id
-				vector<thread> ths(startRIdEnts.size());
-				for (size_t i = 0; i < ths.size(); ++i) {
-					ths[i] = thread([&]() {
-						paths_t res2;
-						auto res = _2hop_Id_Id_Id(startRIdEnts[i], endEntities[0]);
-						for each (auto var in res) {
-							res2.emplace_back(path_t({ startId,var[0],var[1] ,var[2] }));
-						}
+			//	3-hop Id-Others-Id-Id
+			thread step1_2([&]() {
+				thread th1([&]() {	//	Id-CId-Id-Id
+					if (startEntities[0].C_Id == 0) return;
+					Entity_List tmp;
+					queryCustom(AND_CID_RID(startEntities[0].C_Id, endId), tmp);
+					if (!tmp.empty()) {
 						AGG_mtx.lock();
-						copy(res2.cbegin(), res2.cend(), back_inserter(AGG_Path));
+						AGG_Path.emplace_back(path_t({ startId,startEntities[0].C_Id ,tmp[0].Id,endId }));
 						AGG_mtx.unlock();
+					}
+				});
+				thread th2([&]() {	//	Id-JId-Id-Id
+					if (startEntities[0].J_Id == 0) return;
+					Entity_List tmp;
+					queryCustom(AND_JID_RID(startEntities[0].J_Id, endId), tmp);
+					if (!tmp.empty()) {
+						AGG_mtx.lock();
+						AGG_Path.emplace_back(path_t({ startId,startEntities[0].J_Id ,tmp[0].Id,endId }));
+						AGG_mtx.unlock();
+					}
+				});
+				thread th3([&]() {	//	Id-FId-Id-Id
+					if (startEntities[0].F_Id.empty()) return;
+					vector<thread> ths(startEntities[0].F_Id.size());
+					for (size_t i = 0; i < startEntities[0].F_Id.size(); ++i) {
+						ths[i] = thread([&, i]() {
+							Entity_List tmp;
+							queryCustom(AND_FID_RID(startEntities[0].F_Id[i], endId), tmp);
+							if (!tmp.empty()) {
+								AGG_mtx.lock();
+								AGG_Path.emplace_back(path_t({ startId,startEntities[0].F_Id[i] ,tmp[0].Id,endId }));
+								AGG_mtx.unlock();
+							}
+						});
+					}
+					for_each(ths.begin(), ths.end(), [](thread &th) {th.join(); });
+				});
+				thread th4([&]() {	//	Id-AuId-Id-Id
+					vector<thread> ths(startEntities[0].AAs.size());
+					for (size_t i = 0; i < startEntities[0].AAs.size(); ++i) {
+						ths[i] = thread([&, i]() {
+							Entity_List tmp;
+							queryCustom(AND_AUID_RID(startEntities[0].F_Id[i], endId), tmp);
+							if (!tmp.empty()) {
+								AGG_mtx.lock();
+								AGG_Path.emplace_back(path_t({ startId,startEntities[0].F_Id[i] ,tmp[0].Id,endId }));
+								AGG_mtx.unlock();
+							}
+						});
+					}
+					for_each(ths.begin(), ths.end(), [](thread &th) {th.join(); });
+				});
+				th1.join(); th2.join(); th3.join(); th4.join();
+			});
+			
+			thread step1_3([&]() {	// 2-hop Id-Id-*-Id
+				if (startEntities[0].R_Id.empty()) return;
+				vector<thread> ths(startEntities[0].R_Id.size());
+				for (size_t i = 0; i < startEntities[0].R_Id.size(); ++i) {
+					ths[i] = thread([&, i]() {
+						Entity_List tmp;
+						queryCustom(ID(startEntities[0].R_Id[i]), tmp);
+						if (tmp.empty()) return;
+						thread th1([&]() {
+							if (tmp[0].R_Id.cend() !=	//	Id-Id-Id
+								find(tmp[0].R_Id.cbegin(), tmp[0].R_Id.cend(), endId)) {
+								AGG_mtx.lock();
+								AGG_Path.push_back(path_t({ startId,tmp[0].Id,endId }));
+								AGG_mtx.unlock();
+							}
+							//	Id-Id-Others-Id
+							auto res = _2hop_Id_Others_Id(startEntities[0], endEntities[0]);
+							AGG_mtx.lock();
+							copy(res.cbegin(), res.cend(), back_inserter(AGG_Path));
+							AGG_mtx.unlock();
+						});
+						thread th2([&]() {	//	Id-Id-Id-Id
+							auto res1 = _2hop_Id_Id_Id(tmp[0], endEntities[0]);
+							if (res1.empty()) return;
+							paths_t res;
+							for each (auto var in res1) {
+								res.emplace_back(path_t({ startId,var[0],var[1],endId }));
+							}
+							AGG_mtx.lock();
+							copy(res.cbegin(), res.cend(), back_inserter(AGG_Path));
+							AGG_mtx.unlock();
+						});
+						th1.join();
+						th2.join();
 					});
 				}
 				for_each(ths.begin(), ths.end(), [](thread &th) {th.join(); });
 			});
-			//thread step2_3([&]() {	// 3-hop Id-Others-Id-Id
-			//	int num = startEntities[0].F_Id.size() + startEntities[0].AAs.size();
-			//	if (startEntities[0].C_Id != 0) ++num;
-			//	if (startEntities[0].J_Id != 0) ++num;
-			//	vector<thread> queryThreads(num);
-			//});
-			//thread step2_4([&]() {	// 3-hop Id-Others-Id-Id
-			//	int num = startEntities[0].F_Id.size() + startEntities[0].AAs.size();
-			//	if (startEntities[0].C_Id != 0) ++num;
-			//	if (startEntities[0].J_Id != 0) ++num;
-			//	vector<thread> queryThreads(num);
-			//});*/
-			step2_1.join();
-			//step2_2.join();
-			//step2_3.join();
-			//step2_4.join();
-
-#ifdef AGG_DEBUG_
-			cout << "3-hop over" << endl;
-#endif // AGG_DEBUG_
+			step1_1.join();
+			step1_2.join();
+			step1_3.join();
 		} else {	//	Id-Auid
 #ifdef AGG_DEBUG_
 			cout << "Id-AuId" << endl;
@@ -210,7 +263,7 @@ paths_t findPath(Id_type id1, Id_type id2)
 			thread step1_1([&]() {	//	AuId-Id
 				if (startEntities.cend() !=
 					find_if(startEntities.cbegin(), startEntities.cend(),
-						[&](entity var) {return var.Id == id2; })) {
+						[&](entity var) {return var.Id == endId; })) {
 					AGG_mtx.lock();
 					AGG_Path.emplace_back(path_t({ startId,endId }));
 					AGG_mtx.unlock();
@@ -266,7 +319,6 @@ paths_t findPath(Id_type id1, Id_type id2)
 			});
 			//	3-hop
 			thread step1_3(_3hop_AuId_AuId);
-			
 			step1_1.join();
 			step1_2.join();
 			step1_3.join();
@@ -274,10 +326,9 @@ paths_t findPath(Id_type id1, Id_type id2)
 	}
 
 #ifdef AGG_DEBUG_
-	cout << "running time: " << clock() - find_time << endl;
+	cout << "finding time: " << clock() - find_time << "ms" << endl;
 #endif // AGG_DEBUG_
-	
-	return AGG_Path;
+	finding = false;
 }
 
 paths_t _2hop_Id_Id_Id(const entity &ent1, const entity &ent2, Entity_List &queryRes)
@@ -369,7 +420,7 @@ paths_t _2hop_AuId_AfId_AuId(Id_type id1, Id_type id2, Entity_List & ls1, Entity
 {
 	paths_t res;
 	//if (ls1.empty()) queryCustom(AUID(id1), ls1);
-	if (ls2.empty()) queryCustom(AUID(id2), ls2);
+	if (ls2.empty()) queryCustom(AUID(id2), ls2, L"AA.AuId,AA.AfId");
 
 	//	AuId-AfId-AuId
 	set<Id_type> AfIds;
@@ -394,13 +445,13 @@ paths_t _2hop_AuId_AfId_AuId(Id_type id1, Id_type id2, Entity_List & ls1, Entity
 	return res;
 }
 
-paths_t _2hop_AuId_Id_AuId(Id_type id1, Id_type id2)
+paths_t _2hop_AuId_Id_AuId(Id_type id1, Id_type id2)	// second way???
 {
 	Entity_List a;
 	paths_t res;
-	queryCustom(AND_AUID_AUID(id1, id2), a);
+	queryCustom(AND_AUID_AUID(id1, id2), a, L"Id");
 	for each (auto var in a) {
-		res.push_back(path_t({ id1,var.Id,id2 }));
+		res.emplace_back(path_t({ id1,var.Id,id2 }));
 	}
 	return res;
 }
