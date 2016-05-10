@@ -16,6 +16,10 @@
 #define OR_ID_AUID(id) L"OR(Id="+N(id)+L",Composite(AA.AuId="+N(id)+L"))"
 #define AND_ID_RID(x,y) L"AND(Id="+N(x)+L",RId="+N(y)+L")"
 #define AND_AUID_AUID(x,y) L"AND(Composite(AA.AuId="+N(x)+L"),Composite(AA.AuId="+N(y)+L"))"
+#define AND_CID_RID(x,y) L"AND(Composite(C.CId="+N(x)+L"),RId="+N(y)+L")"
+#define AND_JID_RID(x,y) L"AND(Composite(J.JId="+N(x)+L"),RId="+N(y)+L")"
+#define AND_FID_RID(x,y) L"AND(Composite(F.FId="+N(x)+L"),RId="+N(y)+L")"
+#define AND_AUID_RID(x,y) L"AND(Composite(AA.AuId="+N(x)+L"),RId="+N(y)+L")"
 
 enum class QueryAttri
 {
@@ -24,6 +28,8 @@ enum class QueryAttri
 };
 
 void queryCustom(const std::wstring &expr, Entity_List &ents,
+	const std::wstring &attr = L"Id,F.FId,AA.AuId,AA.AfId,J.JId,C.CId,RId",
 	size_t count = 10000, size_t offset = 0);
 void queryCustomLock(const std::wstring &expr, Entity_List &ents, std::mutex &mtx,
+	const std::wstring &attr = L"Id,F.FId,AA.AuId,AA.AfId,J.JId,C.CId,RId",
 	size_t count = 10000, size_t offset = 0);

@@ -19,7 +19,7 @@ using namespace web::http;
 using namespace web::http::client;
 using namespace web::json;
 
-pplx::task<http_response> baseHttpClient(const wstring &expr, size_t count, size_t offset)
+pplx::task<http_response> baseHttpClient(const wstring &expr, const wstring &attr, size_t count, size_t offset)
 {
 #ifndef ACY
 	http_client queryClient(U("https://oxfordhk.azure-api.net"));
@@ -31,14 +31,14 @@ pplx::task<http_response> baseHttpClient(const wstring &expr, size_t count, size
 
 	uri_builder builder(U("/academic/v1.0/evaluate"));
 	builder.append_query(U("subscription-key"), U("f7cc29509a8443c5b3a5e56b0e38b5a6"));
-	builder.append_query(U("attributes"), U("Id,F.FId,AA.AuId,AA.AfId,J.JId,C.CId,RId"));
 	
 	////////////////////////////////////////////////////////
+	builder.append_query(U("expr"), expr);
 	builder.append_query(U("count"), to_wstring(count));
 	builder.append_query(U("offset"), to_wstring(offset));
+	builder.append_query(U("attributes"), attr);
 	///////////////////////////////////////////////////////
-	
-	builder.append_query(U("expr"), expr);
+
 	return queryClient.request(methods::GET, builder.to_string());
 }
 
@@ -196,9 +196,9 @@ void JsonToEntities(const json::value &val, vector<entity> &ents, mutex &mtx)
 	mtx.unlock();
 }
 
-void queryCustom(const wstring &expr, Entity_List &ents, size_t count, size_t offset)
+void queryCustom(const wstring &expr, Entity_List &ents, const wstring &attr, size_t count, size_t offset)
 {
-	auto query = baseHttpClient(expr, count, offset)
+	auto query = baseHttpClient(expr, attr, count, offset)
 		.then(extractResponse)
 		.then(extractJson)
 		.then([&](json::value val) {return JsonToEntities(val, ents); });
@@ -211,9 +211,9 @@ void queryCustom(const wstring &expr, Entity_List &ents, size_t count, size_t of
 	}
 }
 
-void queryCustomLock(const wstring &expr, Entity_List &ents, mutex &mtx, size_t count, size_t offset)
+void queryCustomLock(const wstring &expr, Entity_List &ents, mutex &mtx, const wstring &attr, size_t count, size_t offset)
 {
-	auto query = baseHttpClient(expr, count, offset)
+	auto query = baseHttpClient(expr, attr, count, offset)
 		.then(extractResponse)
 		.then(extractJson)
 		.then([&](json::value val) {return JsonToEntities(val, ents, mtx); });
