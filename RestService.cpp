@@ -83,12 +83,12 @@ void handleRequest(http_request req)
 	req.reply(status_codes::OK, res);
 
 #ifdef NOT_COMPETE_MODE
-	wstring strLog(L"input:");
+	/*wstring strLog(L"input:");
 	strLog += to_wstring(start) + L":" + to_wstring(end);
 	RSLog(strLog);
 	strLog = L"\n&output json:";
 	strLog += res.serialize();
-	RSLog(strLog);
+	RSLog(strLog);*/
 	RSLog("**handling over.\n");
 #endif // !COMPETE_MODE
 }
@@ -163,7 +163,8 @@ int main()
 	}
 	catch (const std::exception& e) {
 		RSLog("@@@@@@Exception: ");
-		RSLog(e.what());
+		//RSLog(e.what());
+		cout << e.what();
 		FreeLibrary(hDll);
 	}
 

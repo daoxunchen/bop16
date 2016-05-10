@@ -128,7 +128,7 @@ void findingPath()
 					AGG_Path.push_back(path_t({ startId,endId }));
 					AGG_mtx.unlock();
 				}
-
+				//	2-hop Id-Others-Id
 				auto res = _2hop_Id_Others_Id(startEntities[0], endEntities[0]);
 				AGG_mtx.lock();
 				copy(res.cbegin(), res.cend(), back_inserter(AGG_Path));
@@ -139,22 +139,28 @@ void findingPath()
 				thread th1([&]() {	//	Id-CId-Id-Id
 					if (startEntities[0].C_Id == 0) return;
 					Entity_List tmp;
-					queryCustom(AND_CID_RID(startEntities[0].C_Id, endId), tmp);
-					if (!tmp.empty()) {
-						AGG_mtx.lock();
-						AGG_Path.emplace_back(path_t({ startId,startEntities[0].C_Id ,tmp[0].Id,endId }));
-						AGG_mtx.unlock();
+					queryCustom(AND_CID_RID(startEntities[0].C_Id, endId), tmp, L"Id");
+					if (tmp.empty()) return;
+					paths_t res;
+					for each (auto var in tmp) {
+						res.emplace_back(path_t({ startId,startEntities[0].C_Id,var.Id,endId }));
 					}
+					AGG_mtx.lock();
+					copy(res.begin(), res.end(), back_inserter(AGG_Path));
+					AGG_mtx.unlock();
 				});
 				thread th2([&]() {	//	Id-JId-Id-Id
 					if (startEntities[0].J_Id == 0) return;
 					Entity_List tmp;
-					queryCustom(AND_JID_RID(startEntities[0].J_Id, endId), tmp);
-					if (!tmp.empty()) {
-						AGG_mtx.lock();
-						AGG_Path.emplace_back(path_t({ startId,startEntities[0].J_Id ,tmp[0].Id,endId }));
-						AGG_mtx.unlock();
+					queryCustom(AND_JID_RID(startEntities[0].J_Id, endId), tmp, L"Id");
+					if (tmp.empty()) return;
+					paths_t res;
+					for each (auto var in tmp) {
+						res.emplace_back(path_t({ startId,startEntities[0].J_Id,var.Id,endId }));
 					}
+					AGG_mtx.lock();
+					copy(res.begin(), res.end(), back_inserter(AGG_Path));
+					AGG_mtx.unlock();
 				});
 				thread th3([&]() {	//	Id-FId-Id-Id
 					if (startEntities[0].F_Id.empty()) return;
@@ -162,12 +168,15 @@ void findingPath()
 					for (size_t i = 0; i < startEntities[0].F_Id.size(); ++i) {
 						ths[i] = thread([&, i]() {
 							Entity_List tmp;
-							queryCustom(AND_FID_RID(startEntities[0].F_Id[i], endId), tmp);
-							if (!tmp.empty()) {
-								AGG_mtx.lock();
-								AGG_Path.emplace_back(path_t({ startId,startEntities[0].F_Id[i] ,tmp[0].Id,endId }));
-								AGG_mtx.unlock();
+							queryCustom(AND_FID_RID(startEntities[0].F_Id[i], endId), tmp, L"Id");
+							if (tmp.empty()) return;
+							paths_t res;
+							for each (auto var in tmp) {
+								res.emplace_back(path_t({ startId,startEntities[0].F_Id[i],var.Id,endId }));
 							}
+							AGG_mtx.lock();
+							copy(res.begin(), res.end(), back_inserter(AGG_Path));
+							AGG_mtx.unlock();
 						});
 					}
 					for_each(ths.begin(), ths.end(), [](thread &th) {th.join(); });
@@ -177,12 +186,15 @@ void findingPath()
 					for (size_t i = 0; i < startEntities[0].AAs.size(); ++i) {
 						ths[i] = thread([&, i]() {
 							Entity_List tmp;
-							queryCustom(AND_AUID_RID(startEntities[0].F_Id[i], endId), tmp);
-							if (!tmp.empty()) {
-								AGG_mtx.lock();
-								AGG_Path.emplace_back(path_t({ startId,startEntities[0].F_Id[i] ,tmp[0].Id,endId }));
-								AGG_mtx.unlock();
+							queryCustom(AND_AUID_RID(startEntities[0].AAs[i].AuId, endId), tmp, L"Id");
+							if (tmp.empty()) return;
+							paths_t res;
+							for each (auto var in tmp) {
+								res.emplace_back(path_t({ startId,startEntities[0].AAs[i].AuId,var.Id,endId }));
 							}
+							AGG_mtx.lock();
+							copy(res.begin(), res.end(), back_inserter(AGG_Path));
+							AGG_mtx.unlock();
 						});
 					}
 					for_each(ths.begin(), ths.end(), [](thread &th) {th.join(); });
@@ -196,17 +208,21 @@ void findingPath()
 				for (size_t i = 0; i < startEntities[0].R_Id.size(); ++i) {
 					ths[i] = thread([&, i]() {
 						Entity_List tmp;
-						queryCustom(ID(startEntities[0].R_Id[i]), tmp);
-						if (tmp.empty()) return;
-						thread th1([&]() {
-							if (tmp[0].R_Id.cend() !=	//	Id-Id-Id
+						queryCustom(ID(startEntities[0].R_Id[i]), tmp, L"Id,F.FId,AA.AuId,J.JId,C.CId,RId", 1);
+						thread th1([&]() {	//	Id-Id-Id
+							if (tmp[0].R_Id.cend() !=
 								find(tmp[0].R_Id.cbegin(), tmp[0].R_Id.cend(), endId)) {
 								AGG_mtx.lock();
 								AGG_Path.push_back(path_t({ startId,tmp[0].Id,endId }));
 								AGG_mtx.unlock();
 							}
 							//	Id-Id-Others-Id
-							auto res = _2hop_Id_Others_Id(startEntities[0], endEntities[0]);
+							auto res1 = _2hop_Id_Others_Id(tmp[0], endEntities[0]);
+							if (res1.empty()) return;
+							paths_t res;
+							for each (auto var in res1) {
+								res.emplace_back(path_t({ startId,var[0],var[1],endId }));
+							}
 							AGG_mtx.lock();
 							copy(res.cbegin(), res.cend(), back_inserter(AGG_Path));
 							AGG_mtx.unlock();
@@ -356,32 +372,55 @@ paths_t _2hop_Id_Id_Id(const entity &ent1, const entity &ent2, Entity_List &quer
 paths_t _2hop_Id_Others_Id(const entity & ent1, const entity & ent2)
 {
 	paths_t res;
-
-	//	Id-FId-Id
-	for each (auto var in ent1.F_Id) {
-		if ((var != 0) && (find(ent2.F_Id.cbegin(), ent2.F_Id.cend(), var) != ent2.F_Id.cend())) {
-			res.emplace_back(path_t({ ent1.Id,var,ent2.Id }));
+	mutex mtx;
+	thread F([&]() {	//	Id-FId-Id
+		for each (auto var in ent1.F_Id) {
+			if ((var != 0) && (find(ent2.F_Id.cbegin(), ent2.F_Id.cend(), var) != ent2.F_Id.cend())) {
+				mtx.lock();
+				res.emplace_back(path_t({ ent1.Id,var,ent2.Id }));
+				mtx.unlock();
+			}
 		}
-	}
+	});
+
+	thread AAth([&]() {
+		for (size_t i = 0; i < ent1.AAs.size(); ++i) {
+			if (find_if(ent2.AAs.begin(), ent2.AAs.end(), [&, i](AA va) {return va.AuId == ent1.AAs[i].AuId; })
+				!= ent2.AAs.end()) {
+				mtx.lock();
+				res.emplace_back(path_t({ ent1.Id,ent1.AAs[i].AuId,ent2.Id }));
+				mtx.unlock();
+			}
+		}
+	});
+
+	////	Id-AuId-Id
+	//for each (auto var in ent1.AAs) {
+	//	if (find_if(ent2.AAs.begin(), ent2.AAs.end(), 
+	//		[&](AA var1) {return var1.AuId == var.AuId; })
+	//		!= ent2.AAs.end()) {
+	//		mtx.lock();
+	//		res.emplace_back(path_t({ ent1.Id,var.AuId,ent2.Id }));
+	//		mtx.unlock();
+	//	}
+	//}
+
 
 	//	Id-CId-Id
 	if ((ent1.C_Id != 0) && (ent1.C_Id == ent2.C_Id)) {
+		mtx.lock();
 		res.emplace_back(path_t({ ent1.Id,ent1.C_Id,ent2.Id }));
+		mtx.unlock();
 	}
 
 	//	Id-JId-Id
 	if ((ent1.J_Id != 0) && (ent1.J_Id == ent2.J_Id)) {
+		mtx.lock();
 		res.emplace_back(path_t({ ent1.Id,ent1.J_Id,ent2.Id }));
+		mtx.unlock();
 	}
 
-	//	Id-AuId-Id
-	for each (auto var in ent1.AAs) {
-		if (ent2.AAs.cend() !=
-			find_if(ent2.AAs.cbegin(), ent2.AAs.cend(),
-				[&](AA var1) {return var1.AuId == var.AuId; })) {
-			res.emplace_back(path_t({ ent1.Id,var.AuId,ent2.Id }));
-		}
-	}
+	F.join(); AAth.join();
 	return res;
 }
 
