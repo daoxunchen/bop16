@@ -27,9 +27,11 @@ enum class QueryAttri
 	AA
 };
 
+//	count=0 will query all
 void queryCustom(const std::wstring &expr, Entity_List &ents,
 	const std::wstring &attr = L"Id,F.FId,AA.AuId,AA.AfId,J.JId,C.CId,RId",
 	size_t count = 10000, size_t offset = 0);
+
 void queryCustomLock(const std::wstring &expr, Entity_List &ents, std::mutex &mtx,
 	const std::wstring &attr = L"Id,F.FId,AA.AuId,AA.AfId,J.JId,C.CId,RId",
 	size_t count = 10000, size_t offset = 0);

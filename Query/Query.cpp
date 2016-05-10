@@ -1,6 +1,6 @@
 #include "../Query.h"
 
-#define ACY
+//#define ACY
 #ifdef ACY
 #include <iostream>
 #endif
@@ -83,61 +83,6 @@ QueryAttri Attri(string_t attr)
 	}
 }
 
-void JsonToEntities(const json::value &val, vector<entity> &ents)
-{
-	if (val.is_null()) return;
-
-	auto valarray = val.as_array();
-	for (auto iter = valarray.cbegin(); iter != valarray.cend(); ++iter) {
-		auto ent = iter->as_object();
-		entity e;
-		for (auto iter2 = ent.cbegin(); iter2 != ent.cend(); ++iter2) {
-			switch (Attri(iter2->first)) {
-			case QueryAttri::Id:
-				e.Id = iter2->second.as_number().to_int64();
-				break;
-			case QueryAttri::FId: {
-				auto Fs = iter2->second.as_array();
-				for (auto iterF = Fs.cbegin(); iterF != Fs.cend(); ++iterF) {
-					e.F_Id.emplace_back(iterF->at(U("FId")).as_number().to_int64());
-				}
-			}break;
-			case QueryAttri::JId:
-				e.J_Id = (iter2->second).as_object().at(U("JId")).as_number().to_int64();
-				break;
-			case QueryAttri::CId:
-				e.C_Id = (iter2->second).as_object().at(U("CId")).as_number().to_int64();
-				break;
-			case QueryAttri::AA: {
-				auto As = iter2->second.as_array();
-				for (auto iterAA = As.cbegin(); iterAA != As.cend(); ++iterAA) {
-					AA a;
-					auto aa = iterAA->as_object();
-					for (auto iteraa = aa.cbegin(); iteraa != aa.cend(); ++iteraa) {
-						switch (Attri(iteraa->first)) {
-						case QueryAttri::AfId:
-							a.AfId = iteraa->second.as_number().to_int64();
-							break;
-						case QueryAttri::AuId:
-							a.AuId = iteraa->second.as_number().to_int64();
-							break;
-						}
-					}
-					e.AAs.emplace_back(a);
-				}
-			}break;
-			case QueryAttri::RId: {
-				auto Rs = iter2->second.as_array();
-				for (auto iterR = Rs.cbegin(); iterR != Rs.cend(); ++iterR) {
-					e.R_Id.emplace_back(iterR->as_number().to_int64());
-				}
-			}break;
-			}
-		}
-		ents.emplace_back(e);
-	}
-}
-
 void JsonToEntities(const json::value &val, vector<entity> &ents, mutex &mtx)
 {
 	if (val.is_null()) return;
@@ -196,32 +141,59 @@ void JsonToEntities(const json::value &val, vector<entity> &ents, mutex &mtx)
 	mtx.unlock();
 }
 
+const size_t countNum = 500;
 void queryCustom(const wstring &expr, Entity_List &ents, const wstring &attr, size_t count, size_t offset)
 {
-	auto query = baseHttpClient(expr, attr, count, offset)
-		.then(extractResponse)
-		.then(extractJson)
-		.then([&](json::value val) {return JsonToEntities(val, ents); });
+	size_t cnt = count == 0 ? 10000 : count;
+	size_t oldSize = ents.size();
+	size_t threadNums = (cnt + countNum - 1) / countNum;
+	mutex queryMtx;
+	vector<thread> ths(threadNums);
+	for (size_t i = 0; i < threadNums; ++i) {
+		ths[i] = thread([&, i]() {
+			auto query = baseHttpClient(expr, attr, countNum, offset + i * countNum)
+				.then(extractResponse)
+				.then(extractJson)
+				.then([&](json::value val) {return JsonToEntities(val, ents, queryMtx); });
 
-	try {
-		query.get();
+			try {
+				query.get();
+			}
+			catch (exception &e) {
+				printf("Exception: %s\r\n", e.what());
+			}
+		});
 	}
-	catch (exception &e) {
-		printf("Exception: %s\r\n", e.what());
+	for_each(ths.begin(), ths.end(), [](thread &th) {th.join(); });
+
+	if (count == 0 && (ents.size() - oldSize) == 10000) {
+		queryCustom(expr, ents, attr, 0, offset + 10000);
 	}
 }
 
 void queryCustomLock(const wstring &expr, Entity_List &ents, mutex &mtx, const wstring &attr, size_t count, size_t offset)
 {
-	auto query = baseHttpClient(expr, attr, count, offset)
-		.then(extractResponse)
-		.then(extractJson)
-		.then([&](json::value val) {return JsonToEntities(val, ents, mtx); });
+	size_t cnt = count == 0 ? 10000 : count;
+	size_t oldSize = ents.size();
+	size_t threadNums = (cnt + countNum - 1) / countNum;
+	vector<thread> ths(threadNums);
+	for (size_t i = 0; i < threadNums; ++i) {
+		ths[i] = thread([&, i]() {
+			auto query = baseHttpClient(expr, attr, countNum, offset + i * countNum)
+				.then(extractResponse)
+				.then(extractJson)
+				.then([&](json::value val) {return JsonToEntities(val, ents, mtx); });
 
-	try {
-		query.get();
+			try {
+				query.get();
+			}
+			catch (exception &e) {
+				printf("Exception: %s\r\n", e.what());
+			}
+		});
 	}
-	catch (exception &e) {
-		printf("Exception: %s\r\n", e.what());
+	for_each(ths.begin(), ths.end(), [](thread &th) {th.join(); });
+	if (count == 0 && (ents.size() - oldSize) == 10000) {
+		queryCustomLock(expr, ents, mtx, attr, 0, offset + 10000);
 	}
 }
