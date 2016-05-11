@@ -1,11 +1,5 @@
 #include "../Query.h"
-
-#define ACY
-#ifdef ACY
-#include <iostream>
-#endif
-
-#define QUERY_DEBUG_
+#include "../Test.h"
 
 #include <iterator>
 #include <thread>
@@ -45,25 +39,22 @@ pplx::task<http_response> baseHttpClient(const wstring &expr, const wstring &att
 
 json::value extractResponse(const http_response &res)
 {
-	if (res.status_code() == status_codes::OK) return res.extract_json().get();
-#ifdef QUERY_DEBUG_
-	else cout << "http_response status_code: " << res.status_code() << endl;
-#endif // QUERY_DEBUG_
-	return json::value();
-}
+	if (res.status_code() != status_codes::OK) {
+#ifdef AGG_DEBUG_
+		cout << "http_response status_code: " << res.status_code() << endl;
+#endif // AGG_DEBUG_
+		return json::value();
+	} 
+	auto val = res.extract_json().get();
 
-json::value extractJson(const json::value &val)
-{
 	if (val.is_null() || !val.is_object()) {
-#ifdef QUERY_DEBUG_
+#ifdef AGG_DEBUG_
 		cout << "val is null or is not a object" << endl;
-#endif // QUERY_DEBUG_
-
+#endif // AGG_DEBUG_
 		return json::value();
 	}
-	
-	auto obj = val.as_object();
-	return obj.at(U("entities"));
+
+	return val.as_object().at(U("entities"));
 }
 
 QueryAttri Attri(string_t attr)
@@ -197,33 +188,42 @@ void JsonToEntities(const json::value &val, vector<entity> &ents, mutex &mtx)
 
 void queryOne(const wstring &expr, entity &ent, const wstring &attr)
 {
-	auto query = baseHttpClient(expr, attr, 10, 0)
+	auto queryTask = baseHttpClient(expr, attr, 10, 0)
 		.then(extractResponse)
-		.then(extractJson)
 		.then([&](json::value val) {JsonTo_1_Entities(val, ent); });
 
 	try {
-		query.get();
+		queryTask.get();
 	}
 	catch (exception &e) {
 		printf("Exception: %s\r\n", e.what());
 	}
 }
 
-const size_t countNum = 400;
-const size_t mexThreads = 50;
+const size_t minQNum = 400;
+const size_t maxThreads = 50;
+const size_t thresholdNum = minQNum * maxThreads;
 void queryCustom(const wstring &expr, Entity_List &ents, const wstring &attr, size_t count, size_t offset)
 {
-	size_t cnt = count == 0 ? defaultCount : count;
-	size_t oldSize = ents.size();
-	size_t threadNums = (cnt + countNum - 1) / countNum;
+	size_t threadNums, countNum;
+	if (count == 0) {
+		threadNums = maxThreads;
+		countNum = minQNum;
+	} else if (count > thresholdNum) {
+		threadNums = maxThreads;
+		countNum = (count + threadNums - 1) / threadNums;
+	} else {
+		countNum = minQNum;
+		threadNums = (count + countNum - 1) / countNum;
+	}
+
 	mutex queryMtx;
+	size_t oldSize = ents.size();
 	vector<thread> ths(threadNums);
 	for (size_t i = 0; i < threadNums; ++i) {
 		ths[i] = thread([&, i]() {
 			auto query = baseHttpClient(expr, attr, countNum, offset + i * countNum)
 				.then(extractResponse)
-				.then(extractJson)
 				.then([&](json::value val) {return JsonToEntities(val, ents, queryMtx); });
 
 			try {
@@ -236,22 +236,31 @@ void queryCustom(const wstring &expr, Entity_List &ents, const wstring &attr, si
 	}
 	for_each(ths.begin(), ths.end(), [](thread &th) {th.join(); });
 
-	if (count == 0 && (ents.size() - oldSize) == defaultCount) {
-		queryCustom(expr, ents, attr, 0, offset + defaultCount);
+	if (count == 0 && (ents.size() - oldSize) == thresholdNum) {
+		queryCustom(expr, ents, attr, 0, offset + thresholdNum);
 	}
 }
 
 void queryCustomLock(const wstring &expr, Entity_List &ents, mutex &mtx, const wstring &attr, size_t count, size_t offset)
 {
-	size_t cnt = count == 0 ? defaultCount : count;
+	size_t threadNums, countNum;
+	if (count == 0) {
+		threadNums = maxThreads;
+		countNum = minQNum;
+	} else if (count > thresholdNum) {
+		threadNums = maxThreads;
+		countNum = (count + threadNums - 1) / threadNums;
+	} else {
+		countNum = minQNum;
+		threadNums = (count + countNum - 1) / countNum;
+	}
+
 	size_t oldSize = ents.size();
-	size_t threadNums = (cnt + countNum - 1) / countNum;
 	vector<thread> ths(threadNums);
 	for (size_t i = 0; i < threadNums; ++i) {
 		ths[i] = thread([&, i]() {
 			auto query = baseHttpClient(expr, attr, countNum, offset + i * countNum)
 				.then(extractResponse)
-				.then(extractJson)
 				.then([&](json::value val) { JsonToEntities(val, ents, mtx); });
 
 			try {
@@ -263,7 +272,7 @@ void queryCustomLock(const wstring &expr, Entity_List &ents, mutex &mtx, const w
 		});
 	}
 	for_each(ths.begin(), ths.end(), [](thread &th) {th.join(); });
-	if (count == 0 && (ents.size() - oldSize) == defaultCount) {
-		queryCustomLock(expr, ents, mtx, attr, 0, offset + defaultCount);
+	if (count == 0 && (ents.size() - oldSize) == thresholdNum) {
+		queryCustomLock(expr, ents, mtx, attr, 0, offset + thresholdNum);
 	}
 }
