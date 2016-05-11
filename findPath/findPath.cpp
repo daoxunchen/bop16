@@ -63,7 +63,7 @@ paths_t findPath(Id_type id1, Id_type id2)
 	AGG_mtx.lock();
 	AGG_Path.clear();	// clear All for a new process
 	AGG_mtx.unlock();
-	while (finding && ((clock() - start_time) < 250000));
+	while (finding && ((clock() - start_time) < 280000));
 
 #ifdef AGG_DEBUG_
 	if (finding) {
@@ -224,17 +224,20 @@ void findingPath()
 				vector<thread> ths(startEntities[0].R_Id.size());
 				for (size_t i = 0; i < startEntities[0].R_Id.size(); ++i) {
 					ths[i] = thread([&, i]() {
-						Entity_List tmp;
-						queryCustom(ID(startEntities[0].R_Id[i]), tmp, L"Id,F.FId,AA.AuId,J.JId,C.CId,RId", 1);
+						entity tmp;
+						queryOne(ID(startEntities[0].R_Id[i]), tmp);
 						thread th1([&]() {	//	Id-Id-Id
-							if (tmp[0].R_Id.cend() !=
-								find(tmp[0].R_Id.cbegin(), tmp[0].R_Id.cend(), endId)) {
+#ifdef AGG_DEBUG_
+							auto th1start = clock();
+#endif
+							if (tmp.R_Id.cend() !=
+								find(tmp.R_Id.cbegin(), tmp.R_Id.cend(), endId)) {
 								AGG_mtx.lock();
-								AGG_Path.push_back(path_t({ startId,tmp[0].Id,endId }));
+								AGG_Path.push_back(path_t({ startId,tmp.Id,endId }));
 								AGG_mtx.unlock();
 							}
 							//	Id-Id-Others-Id
-							auto res1 = _2hop_Id_Others_Id(tmp[0], endEntities[0]);
+							auto res1 = _2hop_Id_Others_Id(tmp, endEntities[0]);
 							if (res1.empty()) return;
 							paths_t res;
 							for each (auto var in res1) {
@@ -243,9 +246,16 @@ void findingPath()
 							AGG_mtx.lock();
 							copy(res.cbegin(), res.cend(), back_inserter(AGG_Path));
 							AGG_mtx.unlock();
+#ifdef AGG_DEBUG_
+							auto th1end = clock();
+							cout << "Id-Id th2--th1:" << th1end - th1start << "ms" << endl;
+#endif
 						});
 						thread th2([&]() {	//	Id-Id-Id-Id
-							auto res1 = _2hop_Id_Id_Id(tmp[0], endEntities[0]);
+#ifdef AGG_DEBUG_
+							auto th1start = clock();
+#endif
+							auto res1 = _2hop_Id_Id_Id(tmp, endEntities[0]);
 							if (res1.empty()) return;
 							paths_t res;
 							for each (auto var in res1) {
@@ -254,6 +264,10 @@ void findingPath()
 							AGG_mtx.lock();
 							copy(res.cbegin(), res.cend(), back_inserter(AGG_Path));
 							AGG_mtx.unlock();
+#ifdef AGG_DEBUG_
+							auto th1end = clock();
+							cout << "Id-Id th2--th2:" << th1end - th1start << "ms" << endl;
+#endif
 						});
 						th1.join();
 						th2.join();
