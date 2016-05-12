@@ -57,7 +57,7 @@ json::value extractResponse(const http_response &res)
 	return val.as_object().at(U("entities"));
 }
 
-QueryAttri Attri(string_t attr)
+QueryAttri Attri(const string_t &attr)
 {
 	switch (attr[0]) {
 	case U('I'): return QueryAttri::Id;
