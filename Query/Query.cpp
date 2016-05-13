@@ -200,7 +200,7 @@ void queryOne(const wstring &expr, entity &ent, const wstring &attr)
 	}
 }
 
-const size_t minQNum = 400;
+const size_t minQNum = 200;
 const size_t maxThreads = 50;
 const size_t thresholdNum = minQNum * maxThreads;
 void queryCustom(const wstring &expr, Entity_List &ents, const wstring &attr, size_t count, size_t offset)

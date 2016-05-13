@@ -86,22 +86,39 @@ paths_t findPath(Id_type id1, Id_type id2)
 void findingPath()
 {	
 	QueryAttri label[2];
-	thread startThread([&]() {
-		startEntities.clear();
-		queryCustom(OR_ID_AUID(startId), startEntities);
-		if (startEntities.size() == 1) label[0] = QueryAttri::Id;	// id1 is Id
-		else if(startEntities.size() > 1){
-			label[0] = QueryAttri::AuId;	//	id1 is Auid
-			startEntities.erase(startEntities.begin());
+
+	thread startThread([&]() {	// test id1 is Id or AuId
+		entity e;
+		thread IdTest([&]() {
+			queryOne(ID(startId), e);
+		});
+		thread AuIdTest([&]() {
+			startEntities.clear();
+			queryCustom(AUID(startId), startEntities);
+		});
+		IdTest.join(); AuIdTest.join();
+		if (startEntities.empty()) {
+			label[0] = QueryAttri::Id;		// id1 is Auid
+			startEntities = { e };
+		} else {
+			label[0] = QueryAttri::AuId;	// id1 is Id
 		}
 	});
-	thread endThread([&]() {
-		endEntities.clear();
-		queryCustom(OR_ID_AUID(endId), endEntities);
-		if (endEntities.size() == 1) label[1] = QueryAttri::Id;	// id2
-		else if (endEntities.size() > 1) {
-			label[1] = QueryAttri::AuId;
-			endEntities.erase(endEntities.begin());
+	thread endThread([&]() {	// test id2 is Id or AuId
+		entity e;
+		thread IdTest([&]() {
+			queryOne(ID(endId), e);
+		});
+		thread AuIdTest([&]() {
+			endEntities.clear();
+			queryCustom(AUID(endId), endEntities);
+		});
+		IdTest.join(); AuIdTest.join();
+		if (endEntities.empty()) {
+			label[1] = QueryAttri::Id;		//	id2 is Id
+			endEntities = { e };
+		} else {
+			label[1] = QueryAttri::AuId;	//	id2 is Auid
 		}
 	});
 	
@@ -114,8 +131,8 @@ void findingPath()
 	}
 
 #ifdef AGG_DEBUG_
-	cout << "query size: " << startEntities.size() << ":" << endEntities.size() << endl;
-	cout << "query time: " << clock() - start_time << "ms" << endl << "query type: ";
+	cout << "\tquery size: " << startEntities.size() << ":" << endEntities.size() << endl;
+	cout << "\tquery time: " << clock() - start_time << "ms" << endl << "\tquery type: ";
 	auto find_time = clock();
 #endif // AGG_DEBUG_
 
@@ -231,7 +248,7 @@ void findingPath()
 							addAGG_path(startId, res);
 #ifdef AGG_DEBUG_
 							auto th1end = clock();
-							cout << "Id-Id th2--th1:" << th1end - th1start << "ms" << endl;
+							cout << "Id-Id th3--th1:" << th1end - th1start << "ms" << endl;
 #endif
 						});
 						thread th2([&]() {	//	Id-Id-Id-Id
@@ -243,7 +260,7 @@ void findingPath()
 							addAGG_path(startId, res);
 #ifdef AGG_DEBUG_
 							auto th1end = clock();
-							cout << "Id-Id th2--th2:" << th1end - th1start << "ms" << endl;
+							cout << "Id-Id th3--th2:" << th1end - th1start << "ms" << endl;
 #endif
 						});
 						th1.join();
@@ -483,6 +500,7 @@ paths_t _2hop_AuId_AfId_AuId(Id_type id1, Id_type id2, Entity_List & ls1, Entity
 	});
 	set<Id_type> AfIds2;
 	thread th2([&]() {
+		if (id2 == id1) return;
 		if (ls2.empty()) queryCustom(AUID(id2), ls2, L"AA.AuId,AA.AfId");
 		for (auto &var : ls2) {
 			auto it = find_if(var.AAs.cbegin(), var.AAs.cend(), [&](AA a) {return a.AuId == id2; });
@@ -493,12 +511,24 @@ paths_t _2hop_AuId_AfId_AuId(Id_type id1, Id_type id2, Entity_List & ls1, Entity
 	});
 	th1.join(); th2.join();
 
-	for (auto &var : AfIds2) {
-		if (AfIds.find(var) != AfIds.end()) {
+	if (id2 == id1) {
+		for (const auto &var : AfIds) {
 			res.emplace_back(path_t({ id1,var,id2 }));
 		}
+	} else {
+		//vector<Id_type> AfIdsCommon;
+		//set_intersection(AfIds.cbegin(), AfIds.cend(), AfIds2.cbegin(), AfIds2.cend(), back_inserter(AfIdsCommon));
+		//for (auto &var : AfIdsCommon) {
+		//	res.emplace_back(path_t({ id1,var,id2 }));
+		//}
+
+
+		for (const auto &var : AfIds2) {
+			if (AfIds.find(var) != AfIds.end()) {
+				res.emplace_back(path_t({ id1,var,id2 }));
+			}
+		}
 	}
-	
 	return res;
 }
 
@@ -515,7 +545,7 @@ paths_t _2hop_AuId_Id_AuId(Id_type id1, Id_type id2)	// second way???
 
 void _3hop_Id_Others_Id_AuId()
 {
-	paths_t res;
+	/*paths_t res;
 	for (auto &var : endEntities) {
 		auto res1 = _2hop_Id_Others_Id(startEntities[0], var);
 		for each (auto var1 in res1) {
@@ -523,7 +553,17 @@ void _3hop_Id_Others_Id_AuId()
 		}
 	}
 	if (res.empty()) return;
-	addAGG_path(res);
+	addAGG_path(res);*/
+
+	vector<thread> ths(endEntities.size());
+	for (size_t i = 0; i < ths.size(); ++i) {
+		ths[i] = thread([&, i]() {
+			auto res = _2hop_Id_Others_Id(startEntities[0], endEntities[i]);
+			if (res.empty()) return;
+			addAGG_path(res, endId);
+		});
+	}
+	for_each(ths.begin(), ths.end(), [](thread &th) {th.join(); });
 }
 
 void _3hop_Id_Id_Id_AuId()

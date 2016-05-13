@@ -13,7 +13,6 @@
 #define AUID(id) L"Composite(AA.AuId="+N(id)+L")"
 #define AFID(id) L"Composite(AA.AfId="+N(id)+L")"
 
-#define OR_ID_AUID(id) L"OR(Id="+N(id)+L",Composite(AA.AuId="+N(id)+L"))"
 #define AND_ID_RID(x,y) L"AND(Id="+N(x)+L",RId="+N(y)+L")"
 #define AND_AUID_AUID(x,y) L"AND(Composite(AA.AuId="+N(x)+L"),Composite(AA.AuId="+N(y)+L"))"
 #define AND_CID_RID(x,y) L"AND(Composite(C.CId="+N(x)+L"),RId="+N(y)+L")"
