@@ -1,21 +1,17 @@
 #pragma once
 
 #include <vector>
+#include <map>
 
 using Id_type = long long;
-
-struct AA
-{
-	Id_type AuId = 0;
-	Id_type AfId = 0;
-};
+//using AA = std::map<Id_type, Id_type>;
 
 struct entity
 {
 	Id_type Id = 0;
 	Id_type J_Id = 0;
 	Id_type C_Id = 0;
-	std::vector<AA> AAs;
+	std::map<Id_type, Id_type> AAs;
 	std::vector<Id_type> R_Id;
 	std::vector<Id_type> F_Id;
 };

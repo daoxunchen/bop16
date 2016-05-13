@@ -102,19 +102,19 @@ void JsonTo_1_Entities(const json::value &val, entity &ent1)
 		case QueryAttri::AA: {
 			auto As = iter2->second.as_array();
 			for (auto iterAA = As.cbegin(); iterAA != As.cend(); ++iterAA) {
-				AA a;
+				Id_type AfId = 0, AuId = 0;
 				auto aa = iterAA->as_object();
 				for (auto iteraa = aa.cbegin(); iteraa != aa.cend(); ++iteraa) {
 					switch (Attri(iteraa->first)) {
 					case QueryAttri::AfId:
-						a.AfId = iteraa->second.as_number().to_int64();
+						AfId = iteraa->second.as_number().to_int64();
 						break;
 					case QueryAttri::AuId:
-						a.AuId = iteraa->second.as_number().to_int64();
+						AuId = iteraa->second.as_number().to_int64();
 						break;
 					}
 				}
-				ent1.AAs.emplace_back(a);
+				ent1.AAs[AuId] = AfId;
 			}
 		}break;
 		case QueryAttri::RId: {
@@ -155,19 +155,19 @@ void JsonToEntities(const json::value &val, vector<entity> &ents, mutex &mtx)
 			case QueryAttri::AA: {
 				auto As = iter2->second.as_array();
 				for (auto iterAA = As.cbegin(); iterAA != As.cend(); ++iterAA) {
-					AA a;
+					Id_type AfId = 0, AuId = 0;
 					auto aa = iterAA->as_object();
 					for (auto iteraa = aa.cbegin(); iteraa != aa.cend(); ++iteraa) {
 						switch (Attri(iteraa->first)) {
 						case QueryAttri::AfId:
-							a.AfId = iteraa->second.as_number().to_int64();
+							AfId = iteraa->second.as_number().to_int64();
 							break;
 						case QueryAttri::AuId:
-							a.AuId = iteraa->second.as_number().to_int64();
+							AuId = iteraa->second.as_number().to_int64();
 							break;
 						}
 					}
-					e.AAs.emplace_back(a);
+					e.AAs[AuId] = AfId;
 				}
 			}break;
 			case QueryAttri::RId: {
