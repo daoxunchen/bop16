@@ -102,19 +102,19 @@ void JsonTo_1_Entities(const json::value &val, entity &ent1)
 		case QueryAttri::AA: {
 			auto As = iter2->second.as_array();
 			for (auto iterAA = As.cbegin(); iterAA != As.cend(); ++iterAA) {
-				AA a;
+				Id_type AfId = 0, AuId = 0;
 				auto aa = iterAA->as_object();
 				for (auto iteraa = aa.cbegin(); iteraa != aa.cend(); ++iteraa) {
 					switch (Attri(iteraa->first)) {
 					case QueryAttri::AfId:
-						a.AfId = iteraa->second.as_number().to_int64();
+						AfId = iteraa->second.as_number().to_int64();
 						break;
 					case QueryAttri::AuId:
-						a.AuId = iteraa->second.as_number().to_int64();
+						AuId = iteraa->second.as_number().to_int64();
 						break;
 					}
 				}
-				ent1.AAs.emplace_back(a);
+				ent1.AAs[AuId] = AfId;
 			}
 		}break;
 		case QueryAttri::RId: {
@@ -155,19 +155,19 @@ void JsonToEntities(const json::value &val, vector<entity> &ents, mutex &mtx)
 			case QueryAttri::AA: {
 				auto As = iter2->second.as_array();
 				for (auto iterAA = As.cbegin(); iterAA != As.cend(); ++iterAA) {
-					AA a;
+					Id_type AfId = 0, AuId = 0;
 					auto aa = iterAA->as_object();
 					for (auto iteraa = aa.cbegin(); iteraa != aa.cend(); ++iteraa) {
 						switch (Attri(iteraa->first)) {
 						case QueryAttri::AfId:
-							a.AfId = iteraa->second.as_number().to_int64();
+							AfId = iteraa->second.as_number().to_int64();
 							break;
 						case QueryAttri::AuId:
-							a.AuId = iteraa->second.as_number().to_int64();
+							AuId = iteraa->second.as_number().to_int64();
 							break;
 						}
 					}
-					e.AAs.emplace_back(a);
+					e.AAs[AuId] = AfId;
 				}
 			}break;
 			case QueryAttri::RId: {
@@ -188,12 +188,12 @@ void JsonToEntities(const json::value &val, vector<entity> &ents, mutex &mtx)
 
 void queryOne(const wstring &expr, entity &ent, const wstring &attr)
 {
-	auto queryTask = baseHttpClient(expr, attr, 10, 0)
+	auto queryTask = baseHttpClient(expr, attr, 3, 0)
 		.then(extractResponse)
 		.then([&](json::value val) {JsonTo_1_Entities(val, ent); });
 
 	try {
-		queryTask.get();
+		queryTask.wait();
 	}
 	catch (exception &e) {
 		printf("Exception: %s\r\n", e.what());
@@ -201,21 +201,13 @@ void queryOne(const wstring &expr, entity &ent, const wstring &attr)
 }
 
 const size_t minQNum = 200;
-const size_t maxThreads = 50;
+const size_t maxThreads = 20;
 const size_t thresholdNum = minQNum * maxThreads;
 void queryCustom(const wstring &expr, Entity_List &ents, const wstring &attr, size_t count, size_t offset)
 {
 	size_t threadNums, countNum;
-	if (count == 0) {
-		threadNums = maxThreads;
-		countNum = minQNum;
-	} else if (count > thresholdNum) {
-		threadNums = maxThreads;
-		countNum = (count + threadNums - 1) / threadNums;
-	} else {
-		countNum = minQNum;
-		threadNums = (count + countNum - 1) / countNum;
-	}
+	threadNums = maxThreads;
+	countNum = count / maxThreads + 1;
 
 	mutex queryMtx;
 	size_t oldSize = ents.size();
@@ -227,7 +219,7 @@ void queryCustom(const wstring &expr, Entity_List &ents, const wstring &attr, si
 				.then([&](json::value val) {return JsonToEntities(val, ents, queryMtx); });
 
 			try {
-				query.get();
+				query.wait();
 			}
 			catch (exception &e) {
 				printf("Exception: %s\r\n", e.what());
@@ -236,24 +228,19 @@ void queryCustom(const wstring &expr, Entity_List &ents, const wstring &attr, si
 	}
 	for_each(ths.begin(), ths.end(), [](thread &th) {th.join(); });
 
-	if (count == 0 && (ents.size() - oldSize) == thresholdNum) {
-		queryCustom(expr, ents, attr, 0, offset + thresholdNum);
+	if ((ents.size()-oldSize) == (countNum*threadNums)) {
+#ifdef AGG_DEBUG_
+		cout << "second time query88888888888888888888888888" << endl;
+#endif // AGG_DEBUG_
+		queryCustom(expr, ents, attr, count, offset + countNum*threadNums);
 	}
 }
 
 void queryCustomLock(const wstring &expr, Entity_List &ents, mutex &mtx, const wstring &attr, size_t count, size_t offset)
 {
 	size_t threadNums, countNum;
-	if (count == 0) {
-		threadNums = maxThreads;
-		countNum = minQNum;
-	} else if (count > thresholdNum) {
-		threadNums = maxThreads;
-		countNum = (count + threadNums - 1) / threadNums;
-	} else {
-		countNum = minQNum;
-		threadNums = (count + countNum - 1) / countNum;
-	}
+	threadNums = maxThreads;
+	countNum = count / maxThreads + 1;
 
 	size_t oldSize = ents.size();
 	vector<thread> ths(threadNums);
@@ -264,7 +251,7 @@ void queryCustomLock(const wstring &expr, Entity_List &ents, mutex &mtx, const w
 				.then([&](json::value val) { JsonToEntities(val, ents, mtx); });
 
 			try {
-				query.get();
+				query.wait();
 			}
 			catch (exception &e) {
 				printf("Exception: %s\r\n", e.what());
@@ -272,7 +259,10 @@ void queryCustomLock(const wstring &expr, Entity_List &ents, mutex &mtx, const w
 		});
 	}
 	for_each(ths.begin(), ths.end(), [](thread &th) {th.join(); });
-	if (count == 0 && (ents.size() - oldSize) == thresholdNum) {
-		queryCustomLock(expr, ents, mtx, attr, 0, offset + thresholdNum);
+	if ((ents.size() - oldSize) == (countNum*threadNums)) {
+#ifdef AGG_DEBUG_
+		cout << "second time query88888888888888888888888888" << endl;
+#endif // AGG_DEBUG_
+		queryCustomLock(expr, ents, mtx, attr, count, offset + countNum*threadNums);
 	}
 }
