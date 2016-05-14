@@ -24,7 +24,7 @@ AuId1 <--> AfId2	AuId1.AfId == AfId2
 3--AuId-Id-Id-AuId
 **********************************************/
 
-
+#include "../Test.h"
 #include "../Entity.h"
 #include "../Query.h"
 //#include "../newQuery.h"
@@ -36,8 +36,6 @@ AuId1 <--> AfId2	AuId1.AfId == AfId2
 #include <thread>
 #include <mutex>
 #include <ctime>
-
-#define AGG_DEBUG_
 
 #ifdef AGG_DEBUG_
 	#include <iostream>
@@ -739,9 +737,9 @@ paths_t findPath(Id_type id1, Id_type id2)
 	finding = true;
 	startId = id1;
 	endId = id2;
+	AGG_mtx.lock();
 	thread findThread(findingPath);
 	findThread.detach();
-	AGG_mtx.lock();
 	AGG_Path.clear();	// clear All for a new process
 	AGG_mtx.unlock();
 	while (finding && ((clock() - gstart_time) < 280000));

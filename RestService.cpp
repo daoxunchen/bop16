@@ -132,8 +132,10 @@ int main()
 		while (true);
 	}
 	catch (const std::exception& e) {
+#ifdef AGG_DEBUG_
 		AGGLog("@@@@@@Exception: ");
 		AGGLog(e.what());
+#endif // AGG_DEBUG_
 #ifdef SEPARATE
 		FreeLibrary(hDll);
 #endif

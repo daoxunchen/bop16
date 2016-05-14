@@ -196,7 +196,9 @@ void queryOne(const wstring &expr, entity &ent, const wstring &attr)
 		queryTask.wait();
 	}
 	catch (exception &e) {
+#ifdef AGG_DEBUG_
 		printf("Exception: %s\r\n", e.what());
+#endif // AGG_DEBUG_
 	}
 }
 
@@ -222,7 +224,9 @@ void queryCustom(const wstring &expr, Entity_List &ents, const wstring &attr, si
 				query.wait();
 			}
 			catch (exception &e) {
+#ifdef AGG_DEBUG_
 				printf("Exception: %s\r\n", e.what());
+#endif // AGG_DEBUG_
 			}
 		});
 	}
@@ -254,7 +258,9 @@ void queryCustomLock(const wstring &expr, Entity_List &ents, mutex &mtx, const w
 				query.wait();
 			}
 			catch (exception &e) {
+#ifdef AGG_DEBUG_
 				printf("Exception: %s\r\n", e.what());
+#endif // AGG_DEBUG_
 			}
 		});
 	}

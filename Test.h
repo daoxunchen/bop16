@@ -1,6 +1,6 @@
 #pragma once
 
-#define SEPARATE
+//#define SEPARATE
 //#define ACY
 //#define COMPETE_TIME
 
