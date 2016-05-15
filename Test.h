@@ -1,7 +1,7 @@
 #pragma once
 
 //#define SEPARATE
-//#define ACY
+#define ACY
 //#define COMPETE_TIME
 
 #ifndef COMPETE_TIME

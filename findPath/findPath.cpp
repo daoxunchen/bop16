@@ -307,6 +307,14 @@ void findingPath()
 		});
 		th1.join();
 		step2_1.join();
+
+		for (auto p : startEntities) {
+			for (auto s : p.AAs) {
+				cout << s.second;
+			}
+		}
+
+
 #ifdef AGG_DEBUG_
 		auto case2_qtime = clock();
 		cout << "query time:" << case2_qtime - case2_time << "ms" << endl;
@@ -735,6 +743,9 @@ paths_t findPath(Id_type id1, Id_type id2)
 {
 	gstart_time = clock();
 	finding = true;
+#ifdef AGG_DEBUG_
+	//if (id1 != 57898110 || id2 != 2014261844) return AGG_Path;
+#endif // AGG_DEBUG_
 	startId = id1;
 	endId = id2;
 	AGG_mtx.lock();

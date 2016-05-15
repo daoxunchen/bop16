@@ -30,7 +30,7 @@ enum class QueryAttri
 void queryOne(const std::wstring &expr, entity &ent1, 
 	const std::wstring &attr = L"Id,F.FId,AA.AuId,AA.AfId,J.JId,C.CId,RId");
 
-const size_t defaultCount = 1000;
+const size_t defaultCount = 2000;
 void queryCustom(const std::wstring &expr, Entity_List &ents,
 	const std::wstring &attr = L"Id,F.FId,AA.AuId,AA.AfId,J.JId,C.CId,RId",
 	size_t count = defaultCount, size_t offset = 0);

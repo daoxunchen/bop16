@@ -27,7 +27,7 @@ void handleRequest(http_request req)
 {
 #ifndef COMPETE_TIME
 	AGGLog("**handling request...");
-
+	auto stime = clock();
 #ifdef AGG_DEBUG_
 	//RSLog(L"\n" + req.to_string());
 	AGGLog(req.absolute_uri().to_string());
@@ -63,6 +63,9 @@ void handleRequest(http_request req)
 	strLog = L"\n&output json:";
 	strLog += res.serialize();
 	RSLog(strLog);*/
+	auto etime = clock();
+	AGGLog("**handling time:");
+	AGGLog(etime - stime);
 	AGGLog("**handling over.\n");
 #endif // !COMPETE_TIME
 }
