@@ -1,14 +1,13 @@
 # bop16
 
-ÕâÊÇ±à³ÌÖ®ÃÀ2016¸´ÈüµÄ´úÂë£¬Ð¡×éÅÅÃû68¡£¡£¡£ºÍÆ½Ê±ÆÀ²âË®Æ½²î²»¶à
+è¿™æ˜¯ç¼–ç¨‹ä¹‹ç¾Ž2016å¤èµ›çš„ä»£ç ï¼Œå°ç»„æŽ’å68ã€‚ã€‚ã€‚æžœç„¶å¤§ç¥žå¾ˆå¤š
 
-´úÂëÓÉÓÚÃ»ÓÐ¿¼ÂÇÔÚÒ»ÆªpaperÖÐÒ»¸öAuId¿ÉÒÔ¶ÔÓ¦¶à¸öAfIdµÄÇé¿ö£¬ËùÒÔÔÚ¼«ÉÙÊýÇé¿öÏÂ»áÈ±Ê§²¿·ÖÂ·¾¶¡£
-ÐÒÔËµÄÊÇÔÚ¸´Èü×îÖÕÆÀ²âÖÐºÃÏñÃ»ÓÐÓöµ½ÕâÖÖÇé¿ö¡£¡£¡£
+ä»£ç ç”±äºŽæ²¡æœ‰è€ƒè™‘åœ¨ä¸€ç¯‡paperä¸­ä¸€ä¸ªAuIdå¯ä»¥å¯¹åº”å¤šä¸ªAfIdçš„æƒ…å†µï¼Œæ‰€ä»¥åœ¨æžå°‘æ•°æƒ…å†µä¸‹ä¼šç¼ºå¤±éƒ¨åˆ†è·¯å¾„ã€‚
+å¹¸è¿çš„æ˜¯åœ¨å¤èµ›æœ€ç»ˆè¯„æµ‹ä¸­å¥½åƒæ²¡æœ‰é‡åˆ°è¿™ç§æƒ…å†µã€‚ã€‚ã€‚
 
-* master·ÖÖ§ÊÇ±ÈÈüÌá½»µÄ³ÌÐò´úÂë
-²ÉÓÃcpprest×÷restful·þÎñºÍquery²éÑ¯¼°cpprestÄÚÖÃµÄjson parserÀ´½âÎöºÍ·¢ËÍ
-* devA·ÖÖ§ÊÇÐÞÕýÉÏÊöbug£¬²¢ÇÒ²ÎÕÕ½ø¾öÈüµÄ¶ÓÎéµÄ´úÂëÓÅ»¯¹ýµÄ°æ±¾£¨Î´Íê³É£©
-²ÉÓÃwinhttpÖØÐ´query£¬²ÉÓÃrapidjson½âÎöjson
-ÓÅ»¯²¿·Ö£º1¡¢²ÉÓÃhttp³¤Á¬½Ó£¬¼õÉÙ²éÑ¯Ê±¼ä 2¡¢Ã¿´Î²éÑ¯¶¼²éÁ½´Î£¬±ÜÃâÍøÂç²¨¶¯
-* AnsCompare·ÖÖ§´ð°¸±È¶Ô¹¤¾ß£¨Î´Íê³É£©
-* MyQuery·ÖÖ§×Ô¼º´î½¨µÄÆÀ²âÏµÍ³£¨Î´Íê³É£©
+* masteråˆ†æ”¯æ˜¯æ¯”èµ›æäº¤çš„ç¨‹åºä»£ç 
+é‡‡ç”¨cpprestä½œrestfulæœåŠ¡å’ŒqueryæŸ¥è¯¢åŠcpprestå†…ç½®çš„json parseræ¥è§£æžå’Œå‘é€
+* devAåˆ†æ”¯æ˜¯ä¿®æ­£ä¸Šè¿°bugï¼Œå¹¶ä¸”å‚ç…§è¿›å†³èµ›çš„é˜Ÿä¼çš„ä»£ç ä¼˜åŒ–è¿‡çš„ç‰ˆæœ¬ï¼ˆæœªå®Œæˆï¼‰
+ä¼˜åŒ–éƒ¨åˆ†ï¼š1ã€é‡‡ç”¨httpé•¿è¿žæŽ¥ï¼Œå‡å°‘æŸ¥è¯¢æ—¶é—´ 2ã€æ¯æ¬¡æŸ¥è¯¢éƒ½æŸ¥ä¸¤æ¬¡ï¼Œé¿å…ç½‘ç»œæ³¢åŠ¨
+* AnsCompareåˆ†æ”¯ç­”æ¡ˆæ¯”å¯¹å·¥å…·
+* MyQueryåˆ†æ”¯è‡ªå·±æ­å»ºçš„è¯„æµ‹ç³»ç»Ÿï¼ˆæœªå®Œæˆï¼‰
