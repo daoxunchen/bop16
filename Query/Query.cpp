@@ -114,7 +114,7 @@ void JsonTo_1_Entities(const json::value &val, entity &ent1)
 						break;
 					}
 				}
-				ent1.AAs[AuId] = AfId;
+				ent1.AAs.insert({ AuId,AfId });
 			}
 		}break;
 		case QueryAttri::RId: {
@@ -167,7 +167,7 @@ void JsonToEntities(const json::value &val, vector<entity> &ents, mutex &mtx)
 							break;
 						}
 					}
-					e.AAs[AuId] = AfId;
+					e.AAs.insert({ AuId,AfId });
 				}
 			}break;
 			case QueryAttri::RId: {

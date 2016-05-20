@@ -191,7 +191,8 @@ void findingPath()
 						}
 						addAGG_path(res);
 					});
-					++iterAA;
+					auto cnt = startEntities[0].AAs.count(iterAA->first);
+					while (cnt--)++iterAA;					
 				}
 				for_each(ths.begin(), ths.end(), [](thread &th) {th.join(); });
 			});
@@ -307,13 +308,6 @@ void findingPath()
 		});
 		th1.join();
 		step2_1.join();
-
-		for (auto p : startEntities) {
-			for (auto s : p.AAs) {
-				cout << s.second;
-			}
-		}
-
 
 #ifdef AGG_DEBUG_
 		auto case2_qtime = clock();
@@ -443,14 +437,15 @@ paths_t _2hop_Id_Others_Id(const entity & ent1, const entity & ent2)
 	});
 
 	thread AAth([&]() {	//	Id-AuId-Id
-		for (const auto &a : ent1.AAs) {
-			if (ent2.AAs.find(a.first) != ent2.AAs.end()) {
+		for (auto it = ent1.AAs.cbegin(); it != ent1.AAs.cend(); ++it) {
+			if (ent2.AAs.find(it->first) != ent2.AAs.end()) {
 				mtx.lock();
-				res.emplace_back(path_t({ ent1.Id,a.first,ent2.Id }));
+				res.emplace_back(path_t({ ent1.Id,it->first,ent2.Id }));
 				mtx.unlock();
+				auto cnt = ent1.AAs.count(it->first);
+				while (--cnt) ++it;
 			}
 		}
-
 	});
 
 	//	Id-CId-Id
@@ -505,37 +500,35 @@ paths_t _2hop_AuId_AfId_AuId(Id_type id1, Id_type id2, Entity_List & ls1)
 	set<Id_type> AfIds;
 	mutex setMtx;
 
-	if (id1 == id2) {
-		for (auto &var : ls1) {
-			auto it = var.AAs.find(id1);
+	for (auto &var : ls1) {
+		auto cnt = var.AAs.count(id1);
+		auto it = var.AAs.find(id1);
+		while (cnt) {
 			AfIds.insert(it->second);
+			++it;
+			--cnt;
 		}
-		AfIds.erase(0);
+	}
+	AfIds.erase(0);
+	if (id1 == id2) {		
 		for (const auto &var : AfIds) {
 			res.emplace_back(path_t({ id1,var,id2 }));
 		}
 	} else {
-		vector<thread> ths(ls1.size());
+		vector<thread> ths(AfIds.size());
+		auto it = AfIds.begin();
 		for (size_t i = 0; i < ths.size(); ++i) {
-			ths[i] = thread([&, i]() {
-				bool needQuery = false;
-				auto it = ls1[i].AAs.find(id1);
-				setMtx.lock();
-				if (AfIds.find(it->second) != AfIds.end()) {
-					AfIds.insert(it->second);
-					needQuery = true;
-				}
-				setMtx.unlock();
-				if (needQuery) {
-					entity a;
-					queryOne(AND_AUID_AFID(id2, it->second), a, L"Id");
-					if (a.Id != 0) {
-						resMtx.lock();
-						res.emplace_back(path_t({ id1,it->second,id2 }));
-						resMtx.unlock();
-					}
+			ths[i] = thread([&]() {
+				Id_type af = *it;
+				entity a;
+				queryOne(AND_AUID_AFID(id2, *it), a, L"Id");
+				if (a.Id != 0) {
+					resMtx.lock();
+					res.emplace_back(path_t({ id1,*it,id2 }));
+					resMtx.unlock();
 				}
 			});
+			++it;
 		}
 		for_each(ths.begin(), ths.end(), [](thread &th) {th.join(); });
 	}
@@ -550,8 +543,13 @@ paths_t _2hop_AuId_AfId_AuId(Id_type id1, Id_type id2, Entity_List & ls1, Entity
 	
 	if (id1 == id2) {
 		for (auto &var : ls1) {
+			auto cnt = var.AAs.count(id1);
 			auto it = var.AAs.find(id1);
-			AfIds.insert(it->second);
+			while (cnt) {
+				AfIds.insert(it->second);
+				++it;
+				--cnt;
+			}
 		}
 		AfIds.erase(0);
 		for (const auto &var : AfIds) {
@@ -561,15 +559,25 @@ paths_t _2hop_AuId_AfId_AuId(Id_type id1, Id_type id2, Entity_List & ls1, Entity
 		set<Id_type> AfIds2;
 		thread th1([&]() {
 			for (auto &var : ls1) {
+				auto cnt = var.AAs.count(id1);
 				auto it = var.AAs.find(id1);
-				AfIds.insert(it->second);
+				while (cnt) {
+					AfIds.insert(it->second);
+					++it;
+					--cnt;
+				}
 			}
 			AfIds.erase(0);
 		});
 		thread th2([&]() {
 			for (auto &var : ls2) {
+				auto cnt = var.AAs.count(id2);
 				auto it = var.AAs.find(id2);
-				AfIds2.insert(it->second);
+				while (cnt) {
+					AfIds.insert(it->second);
+					++it;
+					--cnt;
+				}
 			}
 		});
 		th1.join(); th2.join();
